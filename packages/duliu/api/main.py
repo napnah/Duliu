@@ -164,11 +164,12 @@ async def health():
 
     return {
         "status": "ok",
-        "milestone": "M14",
+        "milestone": "M15",
         "langgraph": settings.use_langgraph,
         "langgraph_checkpoint": checkpointer_mode(),
         "monitor_transport": "websocket+sse",
         "stage_llm_enabled": settings.stage_llm_enabled,
+        "session_tools_enabled": settings.session_tools_enabled,
         "sse_poll_seconds": settings.sse_poll_seconds,
         "sandbox": sandbox_mode(),
         "isolate_available": isolate_available(),
@@ -379,7 +380,19 @@ async def list_stage_agents():
     return {
         "enabled": settings.stage_llm_enabled,
         "stages": sorted(STAGE_LLM_STAGES),
+        "stress_agent": True,
         "openai_configured": bool(settings.openai_api_key),
+    }
+
+
+@app.get("/api/session/tools")
+async def list_session_tools():
+    from duliu.session.tools import SESSION_TOOL_SCHEMAS
+
+    return {
+        "enabled": settings.session_tools_enabled,
+        "openai_configured": bool(settings.openai_api_key),
+        "tools": [t["function"]["name"] for t in SESSION_TOOL_SCHEMAS],
     }
 
 

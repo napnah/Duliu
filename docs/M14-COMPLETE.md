@@ -20,6 +20,6 @@
 bash scripts/m14-smoke-test.sh
 ```
 
-## 仍待（M15+）
+## 后续
 
-- STRESS 专用 Agent、Tool-calling Session、Polygon 真自动上传
+- STRESS Agent、Session Tools：见 [M15-COMPLETE.md](./M15-COMPLETE.md)

@@ -247,6 +247,23 @@ class PipelineFacade:
                 stage_id=stage_id,
                 payload=report,
             )
+        elif stage_id == "STRESS":
+            from duliu.agents.stress_agent import run_stress_agent
+
+            report = await run_stress_agent(session, problem, mode="quick")
+            stage.status = StageStatus.AWAITING_HUMAN.value
+            result = {"stage": stage_id, "report": report, "agent": report.get("mode")}
+            await emit_event(
+                session,
+                problem_id=problem.id,
+                run_id=rid,
+                type="pipeline.dispatch.done",
+                message=report.get("summary", "STRESS agent"),
+                source="pipeline",
+                stage_id=stage_id,
+                level="INFO" if report.get("ok") else "WARN",
+                payload=report,
+            )
         else:
             from duliu.agents.stage_agents import STAGE_LLM_STAGES, run_stage_agent
 

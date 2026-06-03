@@ -1,18 +1,21 @@
-"""M2 Session Agent: rule-based tools + optional OpenAI via httpx."""
+"""M2/M15 Session Agent: rules + OpenAI tool calling."""
 
 from __future__ import annotations
 
+import json
 import re
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from duliu.agents.llm_client import chat_messages
 from duliu.config import settings
 from duliu.db.models import ContestSet, Problem, ProblemStage, Session
 from duliu.facade.contest import ContestFacade
 from duliu.facade.jobs import JobFacade
 from duliu.facade.monitor import MonitorFacade
 from duliu.facade.pipeline import PipelineFacade
+from duliu.session.tools import SESSION_TOOL_SCHEMAS, execute_session_tool
 
 
 class SessionAgent:
@@ -28,6 +31,92 @@ class SessionAgent:
         tools_used: list[dict] = []
         text = user_text.strip()
 
+        if settings.openai_api_key and settings.session_tools_enabled and problem:
+            tool_reply = await self._try_tool_calling(
+                session, problem, text, contest_set=contest_set
+            )
+            if tool_reply:
+                content, used = tool_reply
+                return (content, used)
+
+        return await self._reply_rules(
+            session, chat, problem, text, contest_set=contest_set, tools_used=tools_used
+        )
+
+    async def _try_tool_calling(
+        self,
+        session: AsyncSession,
+        problem: Problem,
+        text: str,
+        *,
+        contest_set: ContestSet | None,
+    ) -> tuple[str, list[dict]] | None:
+        tools_used: list[dict] = []
+        ctx = f"题目={problem.title} 阶段={problem.current_stage} 风格={problem.contest_style}"
+        if contest_set:
+            ctx += f" 套题={contest_set.name}"
+        messages: list[dict] = [
+            {
+                "role": "system",
+                "content": (
+                    "你是 Duliu Session Agent。用中文简洁回复。"
+                    "需要操作时调用工具，不要编造 job_id。"
+                    f" 上下文: {ctx}"
+                ),
+            },
+            {"role": "user", "content": text},
+        ]
+        for _ in range(4):
+            msg = await chat_messages(messages, tools=SESSION_TOOL_SCHEMAS)
+            if not msg:
+                return None
+            tool_calls = msg.get("tool_calls") or []
+            if tool_calls:
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": msg.get("content"),
+                        "tool_calls": tool_calls,
+                    }
+                )
+                for tc in tool_calls:
+                    fn = tc.get("function") or {}
+                    name = fn.get("name") or ""
+                    try:
+                        args = json.loads(fn.get("arguments") or "{}")
+                    except json.JSONDecodeError:
+                        args = {}
+                    result = await execute_session_tool(
+                        session,
+                        problem=problem,
+                        contest_set=contest_set,
+                        name=name,
+                        arguments=args,
+                    )
+                    tools_used.append({"tool": name, "args": args, "result": result[:500]})
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.get("id"),
+                            "content": result,
+                        }
+                    )
+                continue
+            content = (msg.get("content") or "").strip()
+            if content:
+                return (content, tools_used)
+        return None
+
+    async def _reply_rules(
+        self,
+        session: AsyncSession,
+        chat: Session,
+        problem: Problem | None,
+        text: str,
+        *,
+        contest_set: ContestSet | None,
+        tools_used: list[dict],
+    ) -> tuple[str, list[dict]]:
         if contest_set and re.search(r"(套题评估|set\s*eval|evaluate\s*set)", text, re.I):
             try:
                 report = await ContestFacade.evaluate_set(session, contest_set)
@@ -124,43 +213,26 @@ class SessionAgent:
             return ("最近事件:\n" + "\n".join(lines), tools_used)
 
         if settings.openai_api_key and problem:
-            llm = await self._try_openai(problem, text)
-            if llm:
-                return (llm, tools_used)
+            msg = await chat_messages(
+                [
+                    {
+                        "role": "system",
+                        "content": f"Duliu Session Agent，题目 {problem.title}，阶段 {problem.current_stage}。中文简答。",
+                    },
+                    {"role": "user", "content": text},
+                ]
+            )
+            if msg and msg.get("content"):
+                return (msg["content"], tools_used)
 
         hints = [
             "我是 Duliu Session Agent。可尝试：",
-            "- dispatch ADVERSARIAL_REVIEW / PACKAGE / EDITORIAL",
+            "- dispatch STRESS / PACKAGE / EDITORIAL",
             "- approve STRESS — 通过某阶段 Gate",
             "- 对拍 / 状态 / 最近事件",
         ]
+        if settings.session_tools_enabled and settings.openai_api_key:
+            hints.append("（已启用 OpenAI Tool Calling）")
         if contest_set:
             hints.extend(["- 套题评估 / 通过套题 / 套题状态（套题上下文）"])
         return ("\n".join(hints), tools_used)
-
-    async def _try_openai(self, problem: Problem, text: str) -> str | None:
-        import httpx
-
-        sys = (
-            f"You are Duliu Session Agent for problem '{problem.title}' at stage {problem.current_stage}. "
-            "Answer briefly in Chinese. Suggest dispatch/approve/stress commands when helpful."
-        )
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                r = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {settings.openai_api_key}"},
-                    json={
-                        "model": settings.openai_model,
-                        "messages": [
-                            {"role": "system", "content": sys},
-                            {"role": "user", "content": text},
-                        ],
-                        "max_tokens": 500,
-                    },
-                )
-            if r.status_code != 200:
-                return None
-            return r.json()["choices"][0]["message"]["content"]
-        except Exception:
-            return None

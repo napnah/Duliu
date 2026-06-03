@@ -34,3 +34,36 @@ async def chat_completion(
         return (data.get("choices") or [{}])[0].get("message", {}).get("content")
     except Exception:
         return None
+
+
+async def chat_messages(
+    messages: list[dict],
+    *,
+    tools: list[dict] | None = None,
+    max_tokens: int = 800,
+) -> dict | None:
+    """Return OpenAI assistant message dict (may include tool_calls)."""
+    if not settings.openai_api_key:
+        return None
+    import httpx
+
+    body: dict = {
+        "model": settings.openai_model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+    }
+    if tools:
+        body["tools"] = tools
+        body["tool_choice"] = "auto"
+    try:
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            r = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+                json=body,
+            )
+            r.raise_for_status()
+            data = r.json()
+        return (data.get("choices") or [{}])[0].get("message") or {}
+    except Exception:
+        return None
