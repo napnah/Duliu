@@ -499,5 +499,11 @@ button, .btn-primary, .btn-secondary, .btn-ghost, .btn-run {
   font-family: var(--mono);
 }
 .event-feed li:hover { background: var(--bg-subtle); }
+.event-feed li.event-group-head {
+  font-weight: 600;
+  background: var(--bg-subtle);
+  color: var(--accent);
+  margin-top: 8px;
+}
 
 .settings-section { max-width: 560px; }

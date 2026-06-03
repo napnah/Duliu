@@ -127,7 +127,29 @@ class PipelineFacade:
         reason: str = "",
         run_id: uuid.UUID | None = None,
     ) -> dict:
-        """M2/M3: dispatch stage agents (adversarial, package, editorial, …)."""
+        """M2/M3 dispatch; M7 optional LangGraph wrapper."""
+        from duliu.config import settings
+
+        if settings.use_langgraph:
+            from duliu.pipeline.langgraph_runner import invoke_dispatch
+
+            return await invoke_dispatch(
+                session, problem, stage_id, reason=reason, run_id=run_id
+            )
+        return await PipelineFacade.dispatch_core(
+            session, problem, stage_id, reason=reason, run_id=run_id
+        )
+
+    @staticmethod
+    async def dispatch_core(
+        session: AsyncSession,
+        problem: Problem,
+        stage_id: str,
+        *,
+        reason: str = "",
+        run_id: uuid.UUID | None = None,
+    ) -> dict:
+        """Core dispatch implementation (used by LangGraph node and direct path)."""
         rid = run_id or uuid.uuid4()
         if problem.current_stage != stage_id:
             raise ValueError(f"Problem is at {problem.current_stage}, cannot dispatch {stage_id}")

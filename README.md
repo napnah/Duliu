@@ -43,6 +43,10 @@
 
 实现按 [PLAN.md §16](./PLAN.md#16-实施路线图) 里程碑推进。
 
+## M7–M9 ✅ 已完成
+
+- [M7 LangGraph](docs/M7-COMPLETE.md) · [M8 工件回退](docs/M8-COMPLETE.md) · [M9 沙箱/Worker](docs/M9-COMPLETE.md)
+
 ## M6 ✅ 已完成
 
 详见 [docs/M6-COMPLETE.md](./docs/M6-COMPLETE.md)。非原创 IMPORT、import_check、原题提交 Gate、流水线图 API。

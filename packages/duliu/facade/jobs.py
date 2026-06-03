@@ -202,6 +202,24 @@ class JobFacade:
         return job
 
     @staticmethod
+    async def retry_job(session: AsyncSession, job: RunnerJob) -> RunnerJob:
+        if job.status not in (JobStatus.FAILED.value, JobStatus.CANCELLED.value):
+            raise ValueError(f"Cannot retry job in status {job.status}")
+        job.status = JobStatus.QUEUED.value
+        job.result_json = None
+        job.log_text = None
+        await emit_event(
+            session,
+            problem_id=job.problem_id,
+            type="runner.job.retry",
+            message=f"Job {job.id} requeued",
+            source="runner",
+            job_id=job.id,
+        )
+        await session.flush()
+        return job
+
+    @staticmethod
     async def cancel_job(session: AsyncSession, job: RunnerJob) -> RunnerJob:
         if job.status in (JobStatus.DONE.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value):
             raise ValueError(f"Cannot cancel job in status {job.status}")

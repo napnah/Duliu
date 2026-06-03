@@ -5,7 +5,7 @@ BASE="${1:-http://localhost:8000}"
 export DULIU_API="$BASE"
 
 echo "==> M6 smoke @ $BASE"
-curl -sf "$BASE/api/health" | grep -q M6
+curl -sf "$BASE/api/health" | grep -qE 'M6|M9'
 echo "health OK"
 
 TREE=$(curl -sf "$BASE/api/tree")

@@ -531,11 +531,24 @@ async function loadEvents() {
   const ul = document.getElementById("event-list");
   if (!ul) return;
   ul.innerHTML = "";
+  const groups = new Map();
   for (const e of events) {
-    const li = document.createElement("li");
-    const run = e.run_id ? ` · ${String(e.run_id).slice(0, 8)}` : "";
-    li.textContent = `${e.created_at?.slice(0, 19) || ""} [${e.source}]${run} ${e.type}: ${e.message}`;
-    ul.appendChild(li);
+    const key = e.run_id || "_none";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(e);
+  }
+  for (const [runKey, items] of groups) {
+    if (runKey !== "_none") {
+      const h = document.createElement("li");
+      h.className = "event-group-head";
+      h.textContent = `run ${String(runKey).slice(0, 8)}… (${items.length})`;
+      ul.appendChild(h);
+    }
+    for (const e of items) {
+      const li = document.createElement("li");
+      li.textContent = `${e.created_at?.slice(0, 19) || ""} [${e.source}] ${e.type}: ${e.message}`;
+      ul.appendChild(li);
+    }
   }
 }
 
@@ -813,6 +826,25 @@ document.getElementById("btn-interactive").onclick = async () => {
     body: JSON.stringify(body),
   });
   showRunResult(await pollJob(job.id));
+};
+
+document.getElementById("btn-restore-artifact").onclick = async () => {
+  if (!currentProblemId) return;
+  const kind = document.getElementById("artifact-kind").value;
+  const versions = await api(`/api/problems/${currentProblemId}/artifacts/${kind}/versions`);
+  if (!versions.length) {
+    alert("无历史版本");
+    return;
+  }
+  const list = versions.map((v) => `v${v.version} (${v.author})`).join("\n");
+  const ver = parseInt(prompt(`选择要恢复的版本号:\n${list}`, String(versions[0].version)), 10);
+  if (!Number.isFinite(ver)) return;
+  await api(`/api/problems/${currentProblemId}/artifacts/${kind}/restore`, {
+    method: "POST",
+    body: JSON.stringify({ version: ver }),
+  });
+  await loadArtifactContent(kind);
+  alert(`已恢复为基于 v${ver} 的新版本`);
 };
 
 document.getElementById("btn-polygon-zip").onclick = () => {

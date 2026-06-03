@@ -36,9 +36,6 @@ python -m duliu.cli import-check <problem-uuid> --wait
 python -m duliu.cli confirm-submission <problem-uuid> --url "https://..."
 ```
 
-## 未包含（M7+）
+## 后续（M7–M9 已补齐部分能力）
 
-- LangGraph Postgres checkpointer 真图
-- Isolate 沙箱
-- 自动拉取用户 AC 代码为 std
-- 独立 crawler 容器
+见 [M7-COMPLETE.md](./M7-COMPLETE.md)、[M8-COMPLETE.md](./M8-COMPLETE.md)、[M9-COMPLETE.md](./M9-COMPLETE.md)。仍待：Postgres checkpointer、生产级 Isolate、AC 标程自动拉取。

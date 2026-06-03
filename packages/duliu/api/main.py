@@ -41,6 +41,8 @@ from duliu.api.schemas import (
     CrawlImportRequest,
     CrawlImportResponse,
     SubmissionConfirmRequest,
+    ArtifactVersionOut,
+    ArtifactRestoreRequest,
     SessionCreate,
     SessionOut,
     StageAction,
@@ -87,6 +89,7 @@ from duliu.facade.crawl import CrawlFacade
 from duliu.facade.import_flow import confirm_submission, enqueue_import_check
 from duliu.pipeline.orchestrator import PipelineOrchestrator
 from duliu.facade.jobs import JobFacade
+from duliu.facade.artifacts import ArtifactFacade
 from duliu.facade.secrets_store import get_crawler_config, set_crawler_config
 from duliu.facade.pipeline import PipelineFacade
 from duliu.facade.session import SessionFacade
@@ -120,7 +123,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Duliu API", version="0.6.0", lifespan=lifespan)
+app = FastAPI(title="Duliu API", version="0.9.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins.split(","),
@@ -135,7 +138,15 @@ if WEB_DIR.is_dir():
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "milestone": "M6"}
+    from duliu.runner.sandbox import isolate_available, sandbox_mode
+
+    return {
+        "status": "ok",
+        "milestone": "M9",
+        "langgraph": settings.use_langgraph,
+        "sandbox": sandbox_mode(),
+        "isolate_available": isolate_available(),
+    }
 
 
 @app.get("/")
@@ -374,6 +385,28 @@ async def list_stages(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db))
     return out
 
 
+@app.get("/api/runner/sandbox-status")
+async def sandbox_status():
+    from duliu.runner.sandbox import isolate_available, sandbox_mode
+
+    return {
+        "mode": sandbox_mode(),
+        "isolate_available": isolate_available(),
+        "use_isolate": settings.use_isolate,
+    }
+
+
+@app.get("/api/problems/{problem_id}/langgraph/status")
+async def langgraph_status(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    return {
+        "enabled": settings.use_langgraph,
+        "thread_id": (p.spec_json or {}).get("langgraph_thread_id"),
+    }
+
+
 @app.get("/api/problems/{problem_id}/pipeline-graph")
 async def pipeline_graph(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     p = await db.get(Problem, problem_id)
@@ -520,6 +553,30 @@ async def get_artifact(
     art = await JobFacade.latest_artifact(db, problem_id, kind, version)
     if not art:
         raise HTTPException(404, "artifact not found")
+    return ArtifactOut.model_validate(art)
+
+
+@app.get("/api/problems/{problem_id}/artifacts/{kind}/versions", response_model=list[ArtifactVersionOut])
+async def list_artifact_versions(
+    problem_id: uuid.UUID, kind: str, db: AsyncSession = Depends(get_db)
+):
+    versions = await ArtifactFacade.list_versions(db, problem_id, kind)
+    return [ArtifactVersionOut(**v) for v in versions]
+
+
+@app.post("/api/problems/{problem_id}/artifacts/{kind}/restore", response_model=ArtifactOut)
+async def restore_artifact_version(
+    problem_id: uuid.UUID,
+    kind: str,
+    body: ArtifactRestoreRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        art = await ArtifactFacade.restore_version(db, problem_id, kind, body.version)
+        await db.commit()
+        await db.refresh(art)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
     return ArtifactOut.model_validate(art)
 
 
@@ -809,6 +866,20 @@ async def crawl_import(body: CrawlImportRequest, db: AsyncSession = Depends(get_
         problem=ProblemOut.model_validate(problem),
         job=JobOut.model_validate(job),
     )
+
+
+@app.post("/api/jobs/{job_id}/retry", response_model=JobOut)
+async def retry_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    job = await JobFacade.get_job(db, job_id)
+    if not job:
+        raise HTTPException(404, "job not found")
+    try:
+        job = await JobFacade.retry_job(db, job)
+        await db.commit()
+        await db.refresh(job)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return JobOut.model_validate(job)
 
 
 @app.post("/api/jobs/{job_id}/cancel", response_model=JobOut)

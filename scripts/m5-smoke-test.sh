@@ -86,7 +86,7 @@ cli() {
     PYTHONPATH="$(cd "$(dirname "$0")/.." && pwd)/packages" python3 -m duliu.cli "$@"
   fi
 }
-cli health | grep -q M5
+cli health | grep -qE 'M5|M6'
 cli tree | grep -q Workspace
 echo "CLI OK"
 

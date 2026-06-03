@@ -432,9 +432,13 @@ async def process_job(session: AsyncSession, job_id: uuid.UUID) -> None:
 
 
 async def poll_and_run(session: AsyncSession) -> int:
-    result = await session.execute(
-        select(RunnerJob).where(RunnerJob.status == JobStatus.QUEUED.value).limit(5)
-    )
+    from duliu.config import settings
+
+    q = select(RunnerJob).where(RunnerJob.status == JobStatus.QUEUED.value)
+    kinds = settings.worker_job_kinds_list()
+    if kinds:
+        q = q.where(RunnerJob.kind.in_(kinds))
+    result = await session.execute(q.limit(5))
     jobs = list(result.scalars().all())
     for job in jobs:
         await process_job(session, job.id)

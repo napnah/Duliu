@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +14,15 @@ class Settings(BaseSettings):
     cors_origins: str = "*"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
+    use_langgraph: bool = Field(default=False, validation_alias="DULIU_USE_LANGGRAPH")
+    use_isolate: bool = Field(default=False, validation_alias="DULIU_USE_ISOLATE")
+    worker_job_kinds: str = Field(default="", validation_alias="DULIU_WORKER_JOB_KINDS")
+
+    def worker_job_kinds_list(self) -> list[str] | None:
+        raw = (self.worker_job_kinds or "").strip()
+        if not raw:
+            return None
+        return [k.strip() for k in raw.split(",") if k.strip()]
 
 
 settings = Settings()

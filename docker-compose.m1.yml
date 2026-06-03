@@ -35,6 +35,7 @@ services:
       DULIU_DOCS_DIR: /app/docs
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DULIU_PACKAGE_DIR: /tmp/duliu-packages
+      DULIU_USE_LANGGRAPH: ${DULIU_USE_LANGGRAPH:-true}
     depends_on:
       postgres:
         condition: service_healthy

@@ -36,6 +36,7 @@ services:
       DULIU_DOCS_DIR: /app/docs
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DULIU_PACKAGE_DIR: /tmp/duliu-packages
+      DULIU_USE_LANGGRAPH: ${DULIU_USE_LANGGRAPH:-true}
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,11 +57,31 @@ services:
       DULIU_RUNNER_WORK_DIR: /tmp/duliu-runner
       JOB_POLL_SECONDS: "1"
       DULIU_PACKAGE_DIR: /tmp/duliu-packages
+      DULIU_WORKER_JOB_KINDS: "run_single,compile,stress,run_compare,interactive_run,polygon_export"
+      DULIU_USE_LANGGRAPH: ${DULIU_USE_LANGGRAPH:-true}
     depends_on:
       postgres:
         condition: service_healthy
       api:
         condition: service_started
+    volumes:
+      - ./packages:/app/packages:ro
+
+  crawler:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.m1
+      args:
+        APT_MIRROR: ${APT_MIRROR:-mirrors.aliyun.com}
+    entrypoint: []
+    command: ["python", "-m", "duliu.worker"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://duliu:duliu@postgres:5432/duliu
+      JOB_POLL_SECONDS: "2"
+      DULIU_WORKER_JOB_KINDS: "crawl_import"
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
       - ./packages:/app/packages:ro
 

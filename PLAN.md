@@ -1,7 +1,7 @@
 # Duliu — 全自动算法竞赛出题 AI Agent 系统规划
 
 > 版本：v0.4  
-> 状态：**M6 已实现**（见 [docs/M6-COMPLETE.md](./docs/M6-COMPLETE.md)）；M7+ 待实现  
+> 状态：**M9 已实现**（见 [docs/M7-COMPLETE.md](./docs/M7-COMPLETE.md)～[M9-COMPLETE.md](./docs/M9-COMPLETE.md)）  
 > 技术栈：LangGraph · **Postgres** · Docker(Linux) · Isolate · **Facade 封装流水线** · Web 监控+Session · Worker  
 > 决策记录：[docs/decisions.md](./docs/decisions.md) · 运行架构：[docs/architecture-runtime.md](./docs/architecture-runtime.md)
 
@@ -483,6 +483,9 @@ Duliu/
 | **M4** ✅ | 套题 13/4 + Set Evaluator | [docs/M4-COMPLETE.md](./docs/M4-COMPLETE.md) |
 | **M5** ✅ | 爬虫 + Worker 分离 + CLI | [docs/M5-COMPLETE.md](./docs/M5-COMPLETE.md) |
 | **M6** ✅ | NON_ORIGINAL IMPORT + import_check + 提交 Gate | [docs/M6-COMPLETE.md](./docs/M6-COMPLETE.md) |
+| **M7** ✅ | LangGraph dispatch 图 | [docs/M7-COMPLETE.md](./docs/M7-COMPLETE.md) |
+| **M8** ✅ | 工件回退 + 监控分组 + Job retry | [docs/M8-COMPLETE.md](./docs/M8-COMPLETE.md) |
+| **M9** ✅ | Isolate 探测 + Worker/Crawler 分离 | [docs/M9-COMPLETE.md](./docs/M9-COMPLETE.md) |
 
 ---
 

@@ -272,3 +272,16 @@ class CrawlImportResponse(BaseModel):
 class SubmissionConfirmRequest(BaseModel):
     submission_url: str | None = None
     handle: str | None = None
+
+
+class ArtifactVersionOut(BaseModel):
+    version: int
+    id: uuid.UUID
+    author: str | None
+    language: str | None
+    sha256: str
+    created_at: str | None = None
+
+
+class ArtifactRestoreRequest(BaseModel):
+    version: int
