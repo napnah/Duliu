@@ -66,7 +66,7 @@ cli() {
     PYTHONPATH="$(cd "$(dirname "$0")/.." && pwd)/packages" python3 -m duliu.cli "$@"
   fi
 }
-cli health | grep -q M6
+cli health | grep -qE 'M6|M9'
 echo "CLI OK"
 
 echo "==> M6 smoke passed"
