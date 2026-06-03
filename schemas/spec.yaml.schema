@@ -1,0 +1,64 @@
+# Duliu spec.yaml 结构说明
+$id: duliu://schemas/spec.yaml
+type: object
+required: [problem_id, problem_type, contest_style, originality]
+properties:
+  problem_id:
+    type: string
+  contest_style:
+    enum: [ICPC, OI]
+  originality:
+    enum: [ORIGINAL, SEMI_ORIGINAL, NON_ORIGINAL]
+  problem_type:
+    enum: [TRADITIONAL, SUBMIT_ANSWER, INTERACTIVE, COMMUNICATION]
+  solution_languages:
+    type: array
+    items:
+      enum: [cpp, python, java]
+    minItems: 1
+  limits:
+    type: object
+    properties:
+      time_ms:
+        type: integer
+      memory_mb:
+        type: integer
+      java_time_multiplier:
+        default: 2
+  constraints:
+    type: object
+    description: 可执行的参数范围，供 gen/validator 使用
+  difficulty:
+    type: object
+    properties:
+      model:
+        enum: [codeforces]
+      target_rating:
+        type: integer
+      tolerance:
+        type: integer
+      bounds:
+        type: array
+        minItems: 2
+        maxItems: 2
+        items:
+          type: integer
+  spj:
+    type: object
+    properties:
+      required:
+        type: boolean
+      checker:
+        type: string
+  subtasks:
+    type: array
+    description: OI 部分分；ICPC 通常为空
+    items:
+      type: object
+      properties:
+        id:
+          type: string
+        points:
+          type: integer
+        constraints:
+          type: object

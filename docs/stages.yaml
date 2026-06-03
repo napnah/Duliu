@@ -1,0 +1,103 @@
+# Duliu 单题阶段定义 — 与 PLAN.md §6 对齐
+# 每个阶段结束后 status 必须为 APPROVED（人工）才能进入 next
+
+version: "0.1"
+
+stages:
+  - id: IDEA
+    order: 0
+    name: 创意与规格
+    applies_to: [ORIGINAL, SEMI_ORIGINAL]
+    skip_for: [NON_ORIGINAL]
+    artifacts: [idea.yaml, similarity_report.json]
+    agents: [ideation, search]
+    human_gate: required
+
+  - id: IMPORT
+    order: 0
+    name: 爬虫导入
+    applies_to: [NON_ORIGINAL]
+    skip_for: [ORIGINAL, SEMI_ORIGINAL]
+    artifacts: [import.json, statement_draft.md]
+    agents: [crawler]
+    human_gate: required
+
+  - id: SPEC
+    order: 1
+    name: 形式化规格
+    artifacts: [spec.yaml]
+    agents: [design]
+    human_gate: required
+
+  - id: STATEMENT
+    order: 2
+    name: 题面撰写
+    artifacts: [statement/statement.md, statement/statement_en.md]
+    agents: [design]
+    human_gate: required
+    style_overrides:
+      ICPC: [english_primary, sample_io_strict]
+      OI: [chinese_primary, subtask_section_optional]
+
+  - id: SOLUTION
+    order: 3
+    name: 标程与暴力
+    artifacts: [solutions/std.*, solutions/brute.*]
+    agents: [solver]
+    human_gate: required
+    languages: [cpp, python, java]
+
+  - id: GENERATOR
+    order: 4
+    name: 数据生成
+    artifacts: [scripts/gen.*, scripts/validator.*, scripts/checker.*]
+    agents: [solver]
+    human_gate: required
+    problem_type_extras:
+      SUBMIT_ANSWER: [scripts/checker.*]
+      INTERACTIVE: [scripts/interactor.*]
+      COMMUNICATION: [scripts/interactor.*, protocols/comm.md]
+
+  - id: STRESS
+    order: 5
+    name: 对拍验题
+    artifacts: [reports/stress.json, tests/generated/*]
+    agents: []  # 确定性 Runner，非 LLM
+    human_gate: required
+
+  - id: ADVERSARIAL_REVIEW
+    order: 6
+    name: 对抗评估
+    artifacts: [reports/adversarial.json]
+    agents: [adversarial]
+    agent_may_write: false
+    human_gate: required
+
+  - id: PACKAGE
+    order: 7
+    name: 题包构建
+    artifacts: [package/]
+    agents: [polygon_adapter]
+    human_gate: required
+
+  - id: EDITORIAL
+    order: 8
+    name: 题解
+    artifacts: [editorial/editorial.md]
+    agents: [editorialist]
+    human_gate: required
+
+  - id: DONE
+    order: 9
+    name: 完成
+    artifacts: []
+    human_gate: none
+
+transitions:
+  on_reject:
+    ADVERSARIAL_REVIEW:
+      ambiguity: STATEMENT
+      logic_bug: SOLUTION
+      weak_data: GENERATOR
+      stress_fail: STRESS
+      spj_issue: GENERATOR

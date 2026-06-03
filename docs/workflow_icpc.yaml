@@ -1,0 +1,35 @@
+# ICPC 风格工作流配置
+version: "0.1"
+contest_style: ICPC
+
+contest_defaults:
+  problem_count: 13
+  slot_labels: [A, B, C, D, E, F, G, H, I, J, K, L, M]
+
+statement:
+  primary_language: en
+  secondary_language: zh
+  require_sections: [legend, input_format, output_format, constraints, sample]
+  time_limit_ms typical_range: [1000, 3000]
+  memory_limit_mb typical_range: [256, 1024]
+
+data:
+  stress_rounds_default: 100000
+  require_brute: true
+  hack_rounds_optional: 5000
+  max_test_count_hint: 100
+
+scoring:
+  partial_scoring: false
+  subtasks: false
+
+problem_type_notes:
+  TRADITIONAL: default
+  INTERACTIVE: require_interactor_before_stress
+  COMMUNICATION: team_size_hint: 3
+  SUBMIT_ANSWER: spj_required
+
+set_evaluation:
+  check_difficulty_monotonicity: false
+  check_tag_diversity: true
+  max_same_algorithm_family: 4

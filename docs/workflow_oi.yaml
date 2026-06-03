@@ -1,0 +1,34 @@
+# OI 风格工作流配置
+version: "0.1"
+contest_style: OI
+
+contest_defaults:
+  problem_count: 4
+  slot_labels: [P1, P2, P3, P4]
+
+statement:
+  primary_language: zh
+  secondary_language: en
+  require_sections: [description, input_format, output_format, constraints, sample, scoring_optional]
+  subtasks_section_when_partial: true
+
+data:
+  stress_rounds_default: 50000
+  require_brute: true
+  gradient_groups: true
+  subtask_binding: per_subtask_generator
+
+scoring:
+  partial_scoring: true
+  subtasks: optional_per_problem
+
+problem_type_notes:
+  TRADITIONAL: subtasks_allowed
+  SUBMIT_ANSWER: spj_required
+  INTERACTIVE: less_common
+  COMMUNICATION: common_for_team_contests
+
+set_evaluation:
+  check_difficulty_monotonicity: true
+  check_partial_score_curve: true
+  expected_distribution_template: [intro, medium, hard, hard_or_expert]

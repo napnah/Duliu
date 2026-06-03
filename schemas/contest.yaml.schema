@@ -1,0 +1,46 @@
+# Duliu contest.yaml 结构说明（JSON Schema 风格文档）
+$id: duliu://schemas/contest.yaml
+type: object
+required: [id, name, contest_style, problems]
+properties:
+  id:
+    type: string
+  name:
+    type: string
+  contest_style:
+    enum: [ICPC, OI]
+  originality_policy:
+    enum: [ORIGINAL, SEMI_ORIGINAL, NON_ORIGINAL]
+  target_difficulty:
+    type: object
+    properties:
+      model:
+        const: codeforces
+      min_rating:
+        type: integer
+      max_rating:
+        type: integer
+      distribution:
+        type: array
+        items:
+          type: integer
+        description: 各槽位预期 CF rating，长度与 problems 一致
+  problems:
+    type: array
+    items:
+      type: object
+      required: [slot, status]
+      properties:
+        slot:
+          type: string
+        problem_id:
+          type: ["string", "null"]
+        status:
+          enum: [EMPTY, IN_PROGRESS, DONE]
+  defaults:
+    type: object
+    properties:
+      icpc_problem_count:
+        default: 13
+      oi_problem_count:
+        default: 4

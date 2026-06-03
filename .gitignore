@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Duliu runtime (future)
+artifacts/
+*.log
+node_modules/
+
+# OS
+Thumbs.db
+.DS_Store
