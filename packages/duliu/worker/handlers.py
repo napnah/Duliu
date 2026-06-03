@@ -282,6 +282,17 @@ async def handle_stress(session: AsyncSession, job: RunnerJob, problem: Problem)
         checker_source=checker_art.content_text if checker_art else None,
         checker_language=checker_art.language or "python" if checker_art else "python",
     )
+    from duliu.agents.stress_interpret import interpret_stress_report
+
+    interpretation = await interpret_stress_report(problem, report)
+    report = {**report, "interpretation": interpretation}
+    spec = dict(problem.spec_json or {})
+    last = dict(spec.get("last_stress") or {})
+    last["interpretation"] = interpretation
+    last["job_id"] = str(job.id)
+    spec["last_stress"] = last
+    problem.spec_json = spec
+
     job.status = JobStatus.DONE.value
     job.result_json = report
     job.log_text = str(report)

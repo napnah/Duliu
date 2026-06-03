@@ -47,6 +47,7 @@ from duliu.api.schemas import (
     FetchAcStdRequest,
     PolygonApiLinkRequest,
     PolygonBuildPackageRequest,
+    PolygonDownloadRequest,
     ArtifactVersionOut,
     ArtifactRestoreRequest,
     SessionCreate,
@@ -184,7 +185,7 @@ async def health():
 
     return {
         "status": "ok",
-        "milestone": "M19",
+        "milestone": "M20",
         "langgraph": settings.use_langgraph,
         "langgraph_checkpoint": checkpointer_mode(),
         "monitor_transport": "websocket+sse",
@@ -195,6 +196,8 @@ async def health():
         "polygon_form_upload": True,
         "polygon_api": True,
         "stress_llm": settings.stage_llm_enabled,
+        "stress_interpret": True,
+        "package_polygon_sync": True,
         "llm_provider": _llm_provider_name(),
         "llm_configured": _llm_configured(),
         "sse_poll_seconds": settings.sse_poll_seconds,
@@ -457,6 +460,8 @@ async def list_stage_agents():
         "polygon_form_upload": True,
         "polygon_api": True,
         "stress_llm_agent": settings.stage_llm_enabled,
+        "stress_interpret_agent": True,
+        "package_polygon_sync": True,
         "llm_configured": _llm_configured(),
         "llm_provider": _llm_provider_name(),
         "openai_configured": _llm_configured(),
@@ -1037,8 +1042,9 @@ async def problem_polygon_api_status(problem_id: uuid.UUID, db: AsyncSession = D
         **base,
         "problem_id": str(problem_id),
         "linked_polygon_problem_id": polygon_problem_id(p),
-        "last_sync": meta.get("synced_at"),
+        "last_sync": meta.get("synced_at") or (meta.get("last_sync") or {}).get("at"),
         "last_build": (meta.get("last_build") or {}).get("at"),
+        "last_download": (meta.get("last_download") or {}).get("path"),
     }
 
 
@@ -1108,6 +1114,96 @@ async def polygon_api_build(
     await db.commit()
     await db.refresh(p)
     return {"problem_id": str(problem_id), **report}
+
+
+@app.post("/api/problems/{problem_id}/polygon/api/download-package")
+async def polygon_api_download_route(
+    problem_id: uuid.UUID,
+    body: PolygonDownloadRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from duliu.polygon.api_ops import download_polygon_package
+
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    ws = await ensure_default_workspace(db)
+    report = await download_polygon_package(
+        db,
+        p,
+        workspace_id=ws.id,
+        package_id=body.package_id,
+        package_type=body.package_type,
+        pin=body.pin,
+    )
+    await db.commit()
+    await db.refresh(p)
+    return {"problem_id": str(problem_id), **report}
+
+
+@app.post("/api/problems/{problem_id}/package/sync-polygon")
+async def package_sync_polygon(
+    problem_id: uuid.UUID,
+    body: PolygonApiLinkRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from duliu.polygon.api_ops import sync_package_with_polygon
+
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    ws = await ensure_default_workspace(db)
+    report = await sync_package_with_polygon(db, p, workspace_id=ws.id, pin=body.pin)
+    await db.commit()
+    await db.refresh(p)
+    return {"problem_id": str(problem_id), **report}
+
+
+@app.get("/api/problems/{problem_id}/stress/interpretation")
+async def stress_interpretation(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    from duliu.agents.stress_interpret import interpret_stress_report
+
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    last = (p.spec_json or {}).get("last_stress") or {}
+    if last.get("interpretation"):
+        return {"problem_id": str(problem_id), "interpretation": last["interpretation"], "source": "cached"}
+    job_id = last.get("job_id")
+    report = None
+    if job_id:
+        job = await JobFacade.get_job(db, uuid.UUID(str(job_id)))
+        if job and job.result_json:
+            report = job.result_json
+    if not report:
+        return {"problem_id": str(problem_id), "interpretation": None, "reason": "no_stress_report"}
+    interp = await interpret_stress_report(p, report)
+    spec = dict(p.spec_json or {})
+    spec["last_stress"] = {**last, "interpretation": interp}
+    p.spec_json = spec
+    await db.commit()
+    return {"problem_id": str(problem_id), "interpretation": interp, "source": "fresh"}
+
+
+@app.post("/api/problems/{problem_id}/stress/interpret")
+async def stress_interpret_post(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """Re-run interpretation from latest stress job result."""
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    last = (p.spec_json or {}).get("last_stress") or {}
+    job_id = last.get("job_id")
+    if not job_id:
+        raise HTTPException(400, "no stress job recorded")
+    job = await JobFacade.get_job(db, uuid.UUID(str(job_id)))
+    if not job or not job.result_json:
+        raise HTTPException(400, "stress job has no result")
+    from duliu.agents.stress_interpret import interpret_stress_report
+
+    interp = await interpret_stress_report(p, job.result_json)
+    p.spec_json = {**(p.spec_json or {}), "last_stress": {**last, "interpretation": interp}}
+    await db.commit()
+    return {"problem_id": str(problem_id), "interpretation": interp}
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobOut)

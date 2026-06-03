@@ -44,9 +44,9 @@
 
 实现按 [PLAN.md §16](./PLAN.md#16-实施路线图) 里程碑推进。
 
-## M7–M19 ✅ 已完成
+## M7–M20 ✅ 已完成
 
-- [M7](docs/M7-COMPLETE.md) … [M15](docs/M15-COMPLETE.md) · [M16](docs/M16-COMPLETE.md) · [M17](docs/M17-COMPLETE.md) · [M18](docs/M18-COMPLETE.md) · [M19 Polygon API + STRESS LLM](docs/M19-COMPLETE.md)
+- [M7](docs/M7-COMPLETE.md) … [M18](docs/M18-COMPLETE.md) · [M19](docs/M19-COMPLETE.md) · [M20 包下载/双向同步/对拍解读](docs/M20-COMPLETE.md)
 
 ## M6 ✅ 已完成
 

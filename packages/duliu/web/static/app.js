@@ -1188,6 +1188,33 @@ document.getElementById("btn-polygon-api-sync")?.addEventListener("click", async
   await refreshPipeline();
 });
 
+document.getElementById("btn-polygon-api-download")?.addEventListener("click", async () => {
+  if (!currentProblemId) return;
+  const out = await api(`/api/problems/${currentProblemId}/polygon/api/download-package`, {
+    method: "POST",
+    body: JSON.stringify({ package_type: "standard" }),
+  });
+  alert(out.ok ? `已下载: ${out.path}` : JSON.stringify(out, null, 2));
+  await refreshPipeline();
+});
+
+document.getElementById("btn-package-sync")?.addEventListener("click", async () => {
+  if (!currentProblemId) return;
+  const out = await api(`/api/problems/${currentProblemId}/package/sync-polygon`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  alert(out.ok ? `同步完成: ${out.download?.path || out.local?.zip_path}` : JSON.stringify(out, null, 2));
+  await refreshPipeline();
+});
+
+document.getElementById("btn-stress-interpret")?.addEventListener("click", async () => {
+  if (!currentProblemId) return;
+  const out = await api(`/api/problems/${currentProblemId}/stress/interpret`, { method: "POST" });
+  const i = out.interpretation || {};
+  alert(i.summary || JSON.stringify(i, null, 2));
+});
+
 document.getElementById("btn-polygon-api-build")?.addEventListener("click", async () => {
   if (!currentProblemId) return;
   const out = await api(`/api/problems/${currentProblemId}/polygon/api/build-package`, {

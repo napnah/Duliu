@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
+import json
 import random
 import string
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -55,6 +56,43 @@ async def polygon_api_request(
     if data.get("status") != "OK":
         raise PolygonApiError(method, data.get("comment") or "unknown error")
     return data.get("result")
+
+
+async def polygon_api_download(
+    method: str,
+    dest: Path,
+    *,
+    api_key: str,
+    api_secret: str,
+    pin: str | None = None,
+    timeout: float = 120.0,
+    **params: Any,
+) -> dict:
+    """Download binary response from methods like problem.package."""
+    body: dict[str, str] = {k: str(v) for k, v in params.items() if v is not None}
+    if pin:
+        body["pin"] = pin
+    body["apiKey"] = api_key
+    body["time"] = str(int(time.time()))
+    body["apiSig"] = _api_sig(method, body, api_secret)
+
+    url = f"{POLYGON_API_BASE}{method}"
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        r = await client.post(url, data=body)
+        r.raise_for_status()
+        raw = r.content
+
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if raw[:1] == b"{":
+        try:
+            data = json.loads(raw)
+            if data.get("status") == "FAILED":
+                raise PolygonApiError(method, data.get("comment") or "download failed")
+        except json.JSONDecodeError:
+            pass
+    dest.write_bytes(raw)
+    return {"path": str(dest), "size": len(raw)}
 
 
 async def polygon_api_configured(session, workspace_id) -> tuple[str | None, str | None]:

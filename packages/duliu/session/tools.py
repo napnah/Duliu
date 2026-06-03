@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from typing import Any
 
 from sqlalchemy import select
@@ -128,6 +129,36 @@ SESSION_TOOL_SCHEMAS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "polygon_api_download_package",
+            "description": "从 Polygon 下载最新 package zip 到本地",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "package_id": {"type": "integer"},
+                    "package_type": {"type": "string"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "package_sync_polygon",
+            "description": "本地导出 + Polygon buildPackage + 下载落盘",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "stress_interpret",
+            "description": "解读最近一次对拍结果（LLM/规则）",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "stress_preflight",
             "description": "STRESS 预检：检查 std/brute 并返回对拍建议（不排队 job）",
             "parameters": {"type": "object", "properties": {}},
@@ -248,6 +279,47 @@ async def execute_session_tool(
             )
         report = await sync_polygon_packages(session, problem, workspace_id=ws_id)
         return json.dumps(report, ensure_ascii=False)
+
+    if name == "polygon_api_download_package":
+        if not problem:
+            return json.dumps({"error": "no_problem_context"}, ensure_ascii=False)
+        from duliu.polygon.api_ops import download_polygon_package
+
+        report = await download_polygon_package(
+            session,
+            problem,
+            workspace_id=problem.workspace_id,
+            package_id=args.get("package_id"),
+            package_type=args.get("package_type") or "standard",
+        )
+        return json.dumps(report, ensure_ascii=False)
+
+    if name == "package_sync_polygon":
+        if not problem:
+            return json.dumps({"error": "no_problem_context"}, ensure_ascii=False)
+        from duliu.polygon.api_ops import sync_package_with_polygon
+
+        report = await sync_package_with_polygon(session, problem, workspace_id=problem.workspace_id)
+        return json.dumps(report, ensure_ascii=False)
+
+    if name == "stress_interpret":
+        if not problem:
+            return json.dumps({"error": "no_problem_context"}, ensure_ascii=False)
+        from duliu.agents.stress_interpret import interpret_stress_report
+
+        last = (problem.spec_json or {}).get("last_stress") or {}
+        job_id = last.get("job_id")
+        report = None
+        if job_id:
+            job = await JobFacade.get_job(session, uuid.UUID(str(job_id)))
+            if job and job.result_json:
+                report = job.result_json
+        if not report:
+            return json.dumps({"error": "no_stress_report"}, ensure_ascii=False)
+        interp = await interpret_stress_report(problem, report)
+        problem.spec_json = {**(problem.spec_json or {}), "last_stress": {**last, "interpretation": interp}}
+        await session.flush()
+        return json.dumps(interp, ensure_ascii=False)
 
     if name == "polygon_api_build_package":
         if not problem:

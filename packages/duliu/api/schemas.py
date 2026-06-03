@@ -302,6 +302,12 @@ class PolygonBuildPackageRequest(BaseModel):
     pin: str | None = None
 
 
+class PolygonDownloadRequest(BaseModel):
+    package_id: int | None = None
+    package_type: str = "standard"
+    pin: str | None = None
+
+
 class CrawlImportRequest(BaseModel):
     url: str
     title: str | None = None
