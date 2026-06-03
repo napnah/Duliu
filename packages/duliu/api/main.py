@@ -164,7 +164,7 @@ async def health():
 
     return {
         "status": "ok",
-        "milestone": "M17",
+        "milestone": "M18",
         "langgraph": settings.use_langgraph,
         "langgraph_checkpoint": checkpointer_mode(),
         "monitor_transport": "websocket+sse",
@@ -172,6 +172,7 @@ async def health():
         "session_tools_enabled": settings.session_tools_enabled,
         "import_agent": True,
         "contest_langgraph": settings.use_langgraph,
+        "polygon_form_upload": True,
         "sse_poll_seconds": settings.sse_poll_seconds,
         "sandbox": sandbox_mode(),
         "isolate_available": isolate_available(),
@@ -323,6 +324,26 @@ async def contest_langgraph_graph():
     return {"enabled": langgraph_enabled(), **contest_graph_metadata()}
 
 
+@app.get("/api/contest-sets/{contest_set_id}/langgraph/history")
+async def contest_langgraph_history(
+    contest_set_id: uuid.UUID, limit: int = 20, db: AsyncSession = Depends(get_db)
+):
+    from duliu.pipeline.contest_langgraph_runner import list_contest_checkpoint_history
+    from duliu.pipeline.langgraph_runner import langgraph_enabled
+
+    cs = await db.get(ContestSet, contest_set_id)
+    if not cs:
+        raise HTTPException(404, "contest set not found")
+    if not langgraph_enabled():
+        return {"enabled": False, "history": []}
+    thread_id = (cs.set_eval_json or {}).get("langgraph_thread_id") or str(contest_set_id)
+    try:
+        history = await list_contest_checkpoint_history(thread_id, limit=min(limit, 50))
+    except ImportError:
+        return {"enabled": False, "history": [], "error": "langgraph not installed"}
+    return {"enabled": True, "thread_id": thread_id, "history": history}
+
+
 @app.get("/api/contest-sets/{contest_set_id}/langgraph/status")
 async def contest_langgraph_status(contest_set_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     from duliu.pipeline.checkpoint_saver import checkpointer_mode
@@ -409,6 +430,7 @@ async def list_stage_agents():
         "stages": sorted(STAGE_LLM_STAGES),
         "stress_agent": True,
         "import_agent": True,
+        "polygon_form_upload": True,
         "openai_configured": bool(settings.openai_api_key),
     }
 
@@ -944,6 +966,24 @@ async def polygon_attempt_upload(problem_id: uuid.UUID, db: AsyncSession = Depen
     await db.commit()
     await db.refresh(p)
     return {"problem_id": str(problem_id), "export": report, "attempt": report.get("attempt")}
+
+
+@app.post("/api/problems/{problem_id}/polygon/auto-upload")
+async def polygon_auto_upload(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    from duliu.polygon.upload import submit_polygon_form_upload
+
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    ws = await ensure_default_workspace(db)
+    report = await submit_polygon_form_upload(db, p, workspace_id=ws.id)
+    await db.commit()
+    await db.refresh(p)
+    return {
+        "problem_id": str(problem_id),
+        "export": report,
+        "form_upload": report.get("form_upload"),
+    }
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobOut)

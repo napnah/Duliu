@@ -74,6 +74,11 @@
           <p id="set-eval-summary" class="muted"></p>
         </div>
         <div class="card">
+          <h2 class="card-title">LangGraph Checkpoint</h2>
+          <ul id="contest-lg-history" class="lg-history"></ul>
+          <p class="muted" id="contest-lg-meta"></p>
+        </div>
+        <div class="card">
           <h2 class="card-title">槽位</h2>
           <table class="gh-table" id="slot-table">
             <thead><tr><th>槽</th><th>题目</th><th>阶段</th><th>难度</th><th></th></tr></thead>
@@ -120,6 +125,11 @@
             <ol id="stage-timeline" class="stage-timeline"></ol>
           </div>
           <div class="card">
+            <h2 class="card-title">LangGraph Checkpoint</h2>
+            <ul id="pipeline-lg-history" class="lg-history"></ul>
+            <p class="muted" id="pipeline-lg-meta"></p>
+          </div>
+          <div class="card">
             <h2 class="card-title">Gate 备注</h2>
             <input id="gate-note" class="gh-input" placeholder="通过阶段时的备注（可选）" />
             <div class="btn-row" style="margin-top:12px">
@@ -163,6 +173,7 @@
                 <button type="button" id="btn-polygon-zip">Polygon zip</button>
                 <button type="button" id="btn-polygon-prepare">准备 Polygon 上传</button>
                 <button type="button" class="btn-secondary" id="btn-polygon-attempt">Polygon 探活</button>
+                <button type="button" class="btn-secondary" id="btn-polygon-auto">Polygon 自动上传</button>
                 <button type="button" id="btn-dispatch-package">调度 PACKAGE</button>
               </div>
             </details>

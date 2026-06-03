@@ -137,3 +137,30 @@ async def invoke_contest_eval(
     report["checkpointer"] = checkpointer_mode()
     report["graph"] = contest_graph_metadata()
     return report
+
+
+async def list_contest_checkpoint_history(thread_id: str, *, limit: int = 20) -> list[dict]:
+    """List LangGraph state snapshots for a contest set evaluation thread."""
+    if not settings.use_langgraph:
+        return []
+    try:
+        graph = await _get_graph()
+    except (ImportError, ModuleNotFoundError):
+        return []
+    config = {"configurable": {"thread_id": thread_id}}
+    items: list[dict] = []
+    try:
+        async for snap in graph.aget_state_history(config, limit=limit):
+            vals = snap.values or {}
+            items.append(
+                {
+                    "checkpoint_id": snap.config.get("configurable", {}).get("checkpoint_id"),
+                    "slot_count": len(vals.get("slot_summary") or []),
+                    "has_report": bool(vals.get("report")),
+                    "finalized": (vals.get("report") or {}).get("finalized"),
+                    "langgraph": vals.get("langgraph"),
+                }
+            )
+    except Exception:
+        return items
+    return items

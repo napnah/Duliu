@@ -44,9 +44,9 @@
 
 实现按 [PLAN.md §16](./PLAN.md#16-实施路线图) 里程碑推进。
 
-## M7–M17 ✅ 已完成
+## M7–M18 ✅ 已完成
 
-- [M7](docs/M7-COMPLETE.md) … [M15](docs/M15-COMPLETE.md) · [M16 IMPORT/Polygon UI](docs/M16-COMPLETE.md) · [M17 套题 LangGraph + 工具面板](docs/M17-COMPLETE.md)
+- [M7](docs/M7-COMPLETE.md) … [M15](docs/M15-COMPLETE.md) · [M16 IMPORT/Polygon UI](docs/M16-COMPLETE.md) · [M17 套题 LangGraph + 工具面板](docs/M17-COMPLETE.md) · [M18 Polygon 自动上传 + Checkpoint 历史](docs/M18-COMPLETE.md)
 
 ## M6 ✅ 已完成
 

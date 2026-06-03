@@ -382,6 +382,54 @@ async function openContest(id) {
   document.getElementById("set-eval-summary").textContent = ev.summary
     ? `${ev.summary}`
     : "尚未运行套题评估";
+  await refreshContestLanggraphHistory(id);
+}
+
+async function renderLanggraphHistory(listId, metaId, data) {
+  const ul = document.getElementById(listId);
+  const meta = document.getElementById(metaId);
+  if (!ul) return;
+  ul.innerHTML = "";
+  if (!data?.enabled) {
+    if (meta) meta.textContent = "LangGraph 未启用";
+    ul.innerHTML = "<li>—</li>";
+    return;
+  }
+  if (meta) meta.textContent = `thread: ${data.thread_id || "—"}`;
+  const hist = data.history || [];
+  if (!hist.length) {
+    ul.innerHTML = "<li>暂无 checkpoint</li>";
+    return;
+  }
+  for (const h of hist) {
+    const li = document.createElement("li");
+    const cid = (h.checkpoint_id || "?").slice(0, 8);
+    const extra =
+      h.stage_id != null
+        ? `stage=${h.stage_id}`
+        : `slots=${h.slot_count ?? 0} finalized=${h.finalized ?? false}`;
+    li.textContent = `${cid}… ${extra}`;
+    ul.appendChild(li);
+  }
+}
+
+async function refreshContestLanggraphHistory(contestSetId) {
+  try {
+    const data = await api(`/api/contest-sets/${contestSetId}/langgraph/history`);
+    await renderLanggraphHistory("contest-lg-history", "contest-lg-meta", data);
+  } catch {
+    await renderLanggraphHistory("contest-lg-history", "contest-lg-meta", { enabled: false });
+  }
+}
+
+async function refreshPipelineLanggraphHistory() {
+  if (!currentProblemId) return;
+  try {
+    const data = await api(`/api/problems/${currentProblemId}/langgraph/history`);
+    await renderLanggraphHistory("pipeline-lg-history", "pipeline-lg-meta", data);
+  } catch {
+    await renderLanggraphHistory("pipeline-lg-history", "pipeline-lg-meta", { enabled: false });
+  }
 }
 
 function renderDifficultyChart(detail) {
@@ -477,6 +525,7 @@ async function refreshPipeline() {
     }
   }
   renderGraphTimeline("stage-timeline", graph);
+  await refreshPipelineLanggraphHistory();
 }
 
 function renderGraphTimeline(containerId, graph) {
@@ -1073,6 +1122,16 @@ document.getElementById("btn-polygon-attempt")?.addEventListener("click", async 
   });
   const a = out.attempt || {};
   alert(a.instructions || JSON.stringify(a, null, 2));
+  await refreshPipeline();
+});
+
+document.getElementById("btn-polygon-auto")?.addEventListener("click", async () => {
+  if (!currentProblemId) return;
+  const out = await api(`/api/problems/${currentProblemId}/polygon/auto-upload`, {
+    method: "POST",
+  });
+  const f = out.form_upload || {};
+  alert(f.instructions || JSON.stringify(f, null, 2));
   await refreshPipeline();
 });
 

@@ -90,6 +90,31 @@ SESSION_TOOL_SCHEMAS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "prepare_polygon_upload",
+            "description": "导出 Polygon zip 并记录上传指引（需题目上下文）",
+            "parameters": {
+                "type": "object",
+                "properties": {"force_reexport": {"type": "boolean"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "langgraph_history",
+            "description": "查询题目或套题的 LangGraph checkpoint 历史",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer"},
+                    "scope": {"type": "string", "enum": ["problem", "contest_set"]},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "recent_events",
             "description": "查询题目最近监控事件",
             "parameters": {
@@ -172,5 +197,56 @@ async def execute_session_tool(
             return json.dumps({"error": "no_contest_set_context"}, ensure_ascii=False)
         report = await ContestFacade.evaluate_set(session, contest_set)
         return json.dumps(report, ensure_ascii=False)
+
+    if name == "prepare_polygon_upload":
+        if not problem:
+            return json.dumps({"error": "no_problem_context"}, ensure_ascii=False)
+        from duliu.polygon.upload import prepare_polygon_upload
+
+        ws_id = problem.workspace_id
+        report = await prepare_polygon_upload(
+            session,
+            problem,
+            workspace_id=ws_id,
+            force_reexport=bool(args.get("force_reexport")),
+        )
+        return json.dumps(
+            {
+                "ok": report.get("ok"),
+                "zip_path": (report.get("upload") or {}).get("zip_path"),
+                "instructions": (report.get("upload") or {}).get("instructions"),
+            },
+            ensure_ascii=False,
+        )
+
+    if name == "langgraph_history":
+        from duliu.config import settings as cfg
+        from duliu.pipeline.langgraph_runner import langgraph_enabled, list_checkpoint_history
+
+        if not langgraph_enabled():
+            return json.dumps({"enabled": False, "history": []}, ensure_ascii=False)
+        limit = int(args.get("limit") or 10)
+        scope = (args.get("scope") or "problem").lower()
+        if scope == "contest_set":
+            if not contest_set:
+                return json.dumps({"error": "no_contest_set_context"}, ensure_ascii=False)
+            from duliu.pipeline.contest_langgraph_runner import list_contest_checkpoint_history
+
+            thread_id = (contest_set.set_eval_json or {}).get("langgraph_thread_id") or str(
+                contest_set.id
+            )
+            history = await list_contest_checkpoint_history(thread_id, limit=limit)
+            return json.dumps(
+                {"enabled": cfg.use_langgraph, "thread_id": thread_id, "history": history},
+                ensure_ascii=False,
+            )
+        if not problem:
+            return json.dumps({"error": "no_problem_context"}, ensure_ascii=False)
+        thread_id = (problem.spec_json or {}).get("langgraph_thread_id") or str(problem.id)
+        history = await list_checkpoint_history(thread_id, limit=limit)
+        return json.dumps(
+            {"enabled": True, "thread_id": thread_id, "history": history},
+            ensure_ascii=False,
+        )
 
     return json.dumps({"error": f"unknown_tool:{name}"}, ensure_ascii=False)

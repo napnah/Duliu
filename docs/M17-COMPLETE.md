@@ -18,6 +18,6 @@
 bash scripts/m17-smoke-test.sh
 ```
 
-## 仍待（M18+）
+## 后续
 
-- Polygon 表单自动上传、LangGraph 套题 checkpoint 可视化、更多 Session 工具
+见 [M18-COMPLETE.md](./M18-COMPLETE.md)。

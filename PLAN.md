@@ -494,6 +494,7 @@ Duliu/
 | **M15** ✅ | STRESS Agent + Session Tool Calling | [docs/M15-COMPLETE.md](./docs/M15-COMPLETE.md) |
 | **M16** ✅ | IMPORT Agent + Polygon 探活 + 聊天 Tool UI | [docs/M16-COMPLETE.md](./docs/M16-COMPLETE.md) |
 | **M17** ✅ | 套题 LangGraph + `evaluate_contest_set` + Agent 工具面板 | [docs/M17-COMPLETE.md](./docs/M17-COMPLETE.md)、`scripts/m17-smoke-test.sh` |
+| **M18** ✅ | Polygon 表单自动上传 + LangGraph 历史 + Session 工具扩展 | [docs/M18-COMPLETE.md](./docs/M18-COMPLETE.md)、`scripts/m18-smoke-test.sh` |
 
 ---
 
