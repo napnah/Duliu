@@ -1,4 +1,4 @@
-"""M10 SSE monitor event stream."""
+"""M10/M12 monitor event stream (SSE + WebSocket)."""
 
 from __future__ import annotations
 
@@ -33,8 +33,8 @@ async def fetch_events_since(
     return list(rows)
 
 
-def event_to_sse(event: Event) -> str:
-    payload = {
+def event_to_dict(event: Event) -> dict:
+    return {
         "id": str(event.id),
         "created_at": event.created_at.isoformat() if event.created_at else None,
         "source": event.source,
@@ -45,7 +45,34 @@ def event_to_sse(event: Event) -> str:
         "run_id": str(event.run_id) if event.run_id else None,
         "level": event.level,
     }
-    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def event_to_sse(event: Event) -> str:
+    return f"data: {json.dumps(event_to_dict(event), ensure_ascii=False)}\n\n"
+
+
+async def iter_new_events(
+    session_factory,
+    *,
+    problem_id: uuid.UUID | None,
+    contest_set_id: uuid.UUID | None,
+    poll_seconds: float,
+):
+    """Yield new event batches forever."""
+    cursor: uuid.UUID | None = None
+    while True:
+        async with session_factory() as session:
+            events = await fetch_events_since(
+                session,
+                problem_id=problem_id,
+                contest_set_id=contest_set_id,
+                after_id=cursor,
+                limit=100,
+            )
+        if events:
+            cursor = events[-1].id
+        yield events
+        await asyncio.sleep(poll_seconds)
 
 
 async def sse_event_generator(
@@ -55,18 +82,32 @@ async def sse_event_generator(
     contest_set_id: uuid.UUID | None,
     poll_seconds: float = 2.0,
 ):
-    last_id: uuid.UUID | None = None
     yield "data: {\"type\":\"connected\"}\n\n"
-    while True:
-        async with session_factory() as session:
-            events = await fetch_events_since(
-                session,
-                problem_id=problem_id,
-                contest_set_id=contest_set_id,
-                after_id=last_id,
-                limit=100,
-            )
+    async for events in iter_new_events(
+        session_factory,
+        problem_id=problem_id,
+        contest_set_id=contest_set_id,
+        poll_seconds=poll_seconds,
+    ):
         for e in events:
-            last_id = e.id
             yield event_to_sse(e)
-        await asyncio.sleep(poll_seconds)
+
+
+async def ws_event_loop(
+    send_json,
+    session_factory,
+    *,
+    problem_id: uuid.UUID | None,
+    contest_set_id: uuid.UUID | None,
+    poll_seconds: float = 2.0,
+) -> None:
+    """Drive WebSocket with same DB poll loop as SSE."""
+    await send_json({"type": "connected", "transport": "websocket"})
+    async for events in iter_new_events(
+        session_factory,
+        problem_id=problem_id,
+        contest_set_id=contest_set_id,
+        poll_seconds=poll_seconds,
+    ):
+        for e in events:
+            await send_json(event_to_dict(e))

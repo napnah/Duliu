@@ -488,6 +488,7 @@ Duliu/
 | **M9** ✅ | Isolate 探测 + Worker/Crawler 分离 | [docs/M9-COMPLETE.md](./docs/M9-COMPLETE.md) |
 | **M10** ✅ | Postgres checkpointer + SSE + CF AC 标程 | [docs/M10-COMPLETE.md](./docs/M10-COMPLETE.md) |
 | **M11** ✅ | Isolate 接入 C++ Runner + `.env` Cookie 引导 | [docs/M11-COMPLETE.md](./docs/M11-COMPLETE.md) |
+| **M12** ✅ | WebSocket 监控 + LangGraph 三节点 dispatch | [docs/M12-COMPLETE.md](./docs/M12-COMPLETE.md) |
 
 ---
 

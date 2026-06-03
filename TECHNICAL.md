@@ -1,7 +1,7 @@
 # Duliu 技术说明
 
 > 本文档从技术层面描述 Duliu 系统架构、实现现状与关键技术栈，并附各技术的前置背景知识索引。  
-> 对应规划见 [PLAN.md](./PLAN.md)；里程碑见 [docs/M1-COMPLETE.md](./docs/M1-COMPLETE.md) ~ [docs/M11-COMPLETE.md](./docs/M11-COMPLETE.md)。
+> 对应规划见 [PLAN.md](./PLAN.md)；里程碑见 [docs/M1-COMPLETE.md](./docs/M1-COMPLETE.md) ~ [docs/M12-COMPLETE.md](./docs/M12-COMPLETE.md)。
 
 ---
 
@@ -9,7 +9,7 @@
 
 Duliu 是一套**人机协同（HITL）的算法竞赛出题平台**。技术目标是把「出题」拆成可编排、可验收、可审计的阶段流水线：Agent 或规则引擎负责生成/检查工件，人类在每个 **Gate** 闸口审批；验题侧通过 **Job Worker** 在 Linux 容器内编译运行 C++/Python/Java 程序，完成单点运行、对拍、SPJ 判题、交互题驱动等任务。
 
-**当前代码里程碑**：**M11 已实现**（…M10 checkpointer/SSE/AC 标程 → **M11 C++ Runner 走 isolate（可选）+ `.env` Cookie 启动引导**）。**完整多节点 LLM 阶段图、Python/Java isolate、WebSocket** 仍在 M12+ 规划中。
+**当前代码里程碑**：**M12 已实现**（…M11 isolate/`.env` Cookie → **M12 WebSocket 监控 + LangGraph prepare/dispatch/finalize 三节点图**）。**LLM 阶段 Agent 真实现、Python/Java isolate、Polygon 自动上传** 仍在 M13+ 规划中。
 
 ---
 
@@ -225,7 +225,7 @@ packages/duliu/
 |----|------|
 | LangGraph 多 Agent 图 + Postgres Checkpointer | 设计完成，代码 stub |
 | Isolate 沙箱判题 | 规划 |
-| WebSocket/SSE 实时事件 | **M10 SSE**（`GET /api/monitor/events/stream`）；WebSocket 仍规划 |
+| WebSocket/SSE 实时事件 | **M12 WebSocket** + M10 SSE；监控页优先 WS |
 | 爬虫采集非原创题 | 规划 |
 | testlib 标准交互协议 | 规划 |
 | Polygon 自动上传 | 规划 |

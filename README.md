@@ -44,9 +44,9 @@
 
 实现按 [PLAN.md §16](./PLAN.md#16-实施路线图) 里程碑推进。
 
-## M7–M11 ✅ 已完成
+## M7–M12 ✅ 已完成
 
-- [M7 LangGraph](docs/M7-COMPLETE.md) · [M8 工件回退](docs/M8-COMPLETE.md) · [M9 沙箱/Worker](docs/M9-COMPLETE.md) · [M10 SSE/Checkpointer/AC](docs/M10-COMPLETE.md) · [M11 Isolate Runner](docs/M11-COMPLETE.md)
+- [M7 LangGraph](docs/M7-COMPLETE.md) · [M8 工件回退](docs/M8-COMPLETE.md) · [M9 沙箱/Worker](docs/M9-COMPLETE.md) · [M10 SSE/Checkpointer/AC](docs/M10-COMPLETE.md) · [M11 Isolate Runner](docs/M11-COMPLETE.md) · [M12 WebSocket/Graph](docs/M12-COMPLETE.md)
 
 ## M6 ✅ 已完成
 

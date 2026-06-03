@@ -24,7 +24,7 @@ bash scripts/m11-smoke-test.sh
 
 可选：宿主机安装 `isolate` 并 `DULIU_USE_ISOLATE=true` 后，`sandbox-status.mode` 应为 `isolate`。
 
-## 仍待（M12+）
+## 后续
 
-- Python/Java isolate、完整 LangGraph 多阶段 LLM 图
-- WebSocket 监控、Polygon 自动上传
+- WebSocket + 三节点 dispatch 图：见 [M12-COMPLETE.md](./M12-COMPLETE.md)
+- 仍待 M13+：Python/Java isolate、LLM 阶段 Agent、Polygon 自动上传

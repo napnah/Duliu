@@ -8,6 +8,7 @@ let sessionId = null;
 let editor = null;
 let pollTimer = null;
 let eventSource = null;
+let monitorSocket = null;
 let stagePollTimer = null;
 let monacoReady = false;
 let treeCache = null;
@@ -180,10 +181,14 @@ function stopPollers() {
     eventSource.close();
     eventSource = null;
   }
+  if (monitorSocket) {
+    monitorSocket.close();
+    monitorSocket = null;
+  }
   pollTimer = null;
   stagePollTimer = null;
   const sseEl = document.getElementById("monitor-sse-status");
-  if (sseEl) sseEl.textContent = "SSE 未连接";
+  if (sseEl) sseEl.textContent = "实时通道未连接";
 }
 
 function appendMonitorEvent(e, ul) {
@@ -192,7 +197,17 @@ function appendMonitorEvent(e, ul) {
   ul.appendChild(li);
 }
 
-function startEventStream() {
+function onMonitorPayload(data) {
+  if (data.type === "connected") return;
+  const ul = document.getElementById("event-list");
+  if (!ul) return;
+  const rid = document.getElementById("filter-run-id")?.value?.trim();
+  if (rid && data.run_id && data.run_id !== rid) return;
+  appendMonitorEvent(data, ul);
+  while (ul.children.length > 200) ul.removeChild(ul.firstChild);
+}
+
+function startSseMonitor() {
   if (eventSource) {
     eventSource.close();
     eventSource = null;
@@ -203,18 +218,11 @@ function startEventStream() {
   const statusEl = document.getElementById("monitor-sse-status");
   eventSource = new EventSource(API + url);
   eventSource.onopen = () => {
-    if (statusEl) statusEl.textContent = "SSE 已连接（实时推送）";
+    if (statusEl) statusEl.textContent = "SSE 已连接";
   };
   eventSource.onmessage = (ev) => {
     try {
-      const data = JSON.parse(ev.data);
-      if (data.type === "connected") return;
-      const ul = document.getElementById("event-list");
-      if (!ul) return;
-      const rid = document.getElementById("filter-run-id")?.value?.trim();
-      if (rid && data.run_id && data.run_id !== rid) return;
-      appendMonitorEvent(data, ul);
-      while (ul.children.length > 200) ul.removeChild(ul.firstChild);
+      onMonitorPayload(JSON.parse(ev.data));
     } catch (_) {
       /* ignore */
     }
@@ -227,6 +235,45 @@ function startEventStream() {
     }
     if (!pollTimer) pollTimer = setInterval(loadEvents, 3000);
   };
+}
+
+function startWebSocketMonitor() {
+  if (monitorSocket) {
+    monitorSocket.close();
+    monitorSocket = null;
+  }
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  let q = "/api/monitor/events/ws?";
+  if (currentProblemId) q += `problem_id=${currentProblemId}&`;
+  if (currentContestSetId) q += `contest_set_id=${currentContestSetId}&`;
+  const statusEl = document.getElementById("monitor-sse-status");
+  monitorSocket = new WebSocket(`${proto}//${location.host}${q}`);
+  monitorSocket.onopen = () => {
+    if (statusEl) statusEl.textContent = "WebSocket 已连接";
+  };
+  monitorSocket.onmessage = (ev) => {
+    try {
+      onMonitorPayload(JSON.parse(ev.data));
+    } catch (_) {
+      /* ignore */
+    }
+  };
+  const fallback = () => {
+    if (monitorSocket) {
+      monitorSocket.close();
+      monitorSocket = null;
+    }
+    startSseMonitor();
+  };
+  monitorSocket.onerror = fallback;
+  monitorSocket.onclose = (e) => {
+    if (e.code !== 1000 && !eventSource) fallback();
+  };
+}
+
+function startEventStream() {
+  if (typeof WebSocket !== "undefined") startWebSocketMonitor();
+  else startSseMonitor();
 }
 
 window.addEventListener("hashchange", onRoute);

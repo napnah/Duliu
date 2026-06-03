@@ -3,7 +3,7 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -92,7 +92,7 @@ from duliu.facade.import_flow import (
     enqueue_import_check,
     fetch_ac_std_and_save,
 )
-from duliu.facade.monitor_stream import sse_event_generator
+from duliu.facade.monitor_stream import sse_event_generator, ws_event_loop
 from duliu.pipeline.orchestrator import PipelineOrchestrator
 from duliu.facade.jobs import JobFacade
 from duliu.facade.artifacts import ArtifactFacade
@@ -163,9 +163,10 @@ async def health():
 
     return {
         "status": "ok",
-        "milestone": "M11",
+        "milestone": "M12",
         "langgraph": settings.use_langgraph,
         "langgraph_checkpoint": checkpointer_mode(),
+        "monitor_transport": "websocket+sse",
         "sse_poll_seconds": settings.sse_poll_seconds,
         "sandbox": sandbox_mode(),
         "isolate_available": isolate_available(),
@@ -343,6 +344,40 @@ async def stream_events(
     return StreamingResponse(gen, media_type="text/event-stream")
 
 
+@app.websocket("/api/monitor/events/ws")
+async def websocket_events(
+    websocket: WebSocket,
+    problem_id: uuid.UUID | None = None,
+    contest_set_id: uuid.UUID | None = None,
+):
+    """M12 WebSocket monitor (same event feed as SSE)."""
+    await websocket.accept()
+
+    async def send_json(data: dict) -> None:
+        await websocket.send_json(data)
+
+    try:
+        await ws_event_loop(
+            send_json,
+            async_session,
+            problem_id=problem_id,
+            contest_set_id=contest_set_id,
+            poll_seconds=settings.sse_poll_seconds,
+        )
+    except WebSocketDisconnect:
+        return
+    except Exception:
+        await websocket.close()
+
+
+@app.get("/api/langgraph/dispatch-graph")
+async def langgraph_dispatch_graph():
+    from duliu.pipeline.langgraph_runner import dispatch_graph_metadata, langgraph_enabled
+
+    meta = dispatch_graph_metadata()
+    return {"enabled": langgraph_enabled(), **meta}
+
+
 @app.post("/api/problems", response_model=ProblemOut)
 async def create_problem(body: ProblemCreate, db: AsyncSession = Depends(get_db)):
     ws = await ensure_default_workspace(db)
@@ -443,11 +478,14 @@ async def langgraph_status(problem_id: uuid.UUID, db: AsyncSession = Depends(get
     p = await db.get(Problem, problem_id)
     if not p:
         raise HTTPException(404, "problem not found")
+    from duliu.pipeline.langgraph_runner import dispatch_graph_metadata
+
     return {
         "enabled": settings.use_langgraph,
         "thread_id": (p.spec_json or {}).get("langgraph_thread_id"),
         "checkpointer": checkpointer_mode(),
         "checkpoint_config": settings.langgraph_checkpoint,
+        "graph": dispatch_graph_metadata(),
     }
 
 
