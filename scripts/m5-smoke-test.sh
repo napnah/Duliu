@@ -6,7 +6,7 @@ export DULIU_API="$BASE"
 export PYTHONPATH="${PYTHONPATH:-}:$(cd "$(dirname "$0")/.." && pwd)/packages"
 
 echo "==> M5 smoke @ $BASE"
-curl -sf "$BASE/api/health" | grep -q M5
+curl -sf "$BASE/api/health" | grep -qE 'M5|M6'
 echo "health OK"
 
 CFG=$(curl -sf -X PUT "$BASE/api/workspace/crawler-config" \
