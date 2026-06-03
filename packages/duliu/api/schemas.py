@@ -308,6 +308,10 @@ class PolygonDownloadRequest(BaseModel):
     pin: str | None = None
 
 
+class PolygonImportRequest(BaseModel):
+    zip_path: str | None = None
+
+
 class CrawlImportRequest(BaseModel):
     url: str
     title: str | None = None

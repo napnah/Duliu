@@ -129,6 +129,25 @@ SESSION_TOOL_SCHEMAS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "import_polygon_package",
+            "description": "从 Polygon zip 导入工件到题目（std/brute/statement/tests 等）",
+            "parameters": {
+                "type": "object",
+                "properties": {"zip_path": {"type": "string"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_counterexamples",
+            "description": "列出题目已归档的对拍反例",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "polygon_api_download_package",
             "description": "从 Polygon 下载最新 package zip 到本地",
             "parameters": {
@@ -279,6 +298,22 @@ async def execute_session_tool(
             )
         report = await sync_polygon_packages(session, problem, workspace_id=ws_id)
         return json.dumps(report, ensure_ascii=False)
+
+    if name == "import_polygon_package":
+        if not problem:
+            return json.dumps({"error": "no_problem_context"}, ensure_ascii=False)
+        from duliu.polygon.api_ops import import_polygon_package_for_problem
+
+        report = await import_polygon_package_for_problem(
+            session, problem, zip_path=args.get("zip_path")
+        )
+        return json.dumps(report, ensure_ascii=False)
+
+    if name == "list_counterexamples":
+        if not problem:
+            return json.dumps({"error": "no_problem_context"}, ensure_ascii=False)
+        items = (problem.spec_json or {}).get("stress_counterexamples") or []
+        return json.dumps({"count": len(items), "items": items[-10:]}, ensure_ascii=False)
 
     if name == "polygon_api_download_package":
         if not problem:

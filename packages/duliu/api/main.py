@@ -48,6 +48,7 @@ from duliu.api.schemas import (
     PolygonApiLinkRequest,
     PolygonBuildPackageRequest,
     PolygonDownloadRequest,
+    PolygonImportRequest,
     ArtifactVersionOut,
     ArtifactRestoreRequest,
     SessionCreate,
@@ -185,7 +186,7 @@ async def health():
 
     return {
         "status": "ok",
-        "milestone": "M20",
+        "milestone": "M21",
         "langgraph": settings.use_langgraph,
         "langgraph_checkpoint": checkpointer_mode(),
         "monitor_transport": "websocket+sse",
@@ -198,6 +199,8 @@ async def health():
         "stress_llm": settings.stage_llm_enabled,
         "stress_interpret": True,
         "package_polygon_sync": True,
+        "polygon_import": True,
+        "stress_counterexample_archive": True,
         "llm_provider": _llm_provider_name(),
         "llm_configured": _llm_configured(),
         "sse_poll_seconds": settings.sse_poll_seconds,
@@ -462,6 +465,8 @@ async def list_stage_agents():
         "stress_llm_agent": settings.stage_llm_enabled,
         "stress_interpret_agent": True,
         "package_polygon_sync": True,
+        "polygon_import": True,
+        "stress_counterexample_archive": True,
         "llm_configured": _llm_configured(),
         "llm_provider": _llm_provider_name(),
         "openai_configured": _llm_configured(),
@@ -1139,6 +1144,36 @@ async def polygon_api_download_route(
     await db.commit()
     await db.refresh(p)
     return {"problem_id": str(problem_id), **report}
+
+
+@app.post("/api/problems/{problem_id}/polygon/import-package")
+async def polygon_import_package(
+    problem_id: uuid.UUID,
+    body: PolygonImportRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from duliu.polygon.api_ops import import_polygon_package_for_problem
+
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    report = await import_polygon_package_for_problem(db, p, zip_path=body.zip_path)
+    await db.commit()
+    await db.refresh(p)
+    return {"problem_id": str(problem_id), **report}
+
+
+@app.get("/api/problems/{problem_id}/counterexamples")
+async def list_counterexamples(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    spec = p.spec_json or {}
+    return {
+        "problem_id": str(problem_id),
+        "items": spec.get("stress_counterexamples") or [],
+        "last": (spec.get("last_stress") or {}).get("last_counterexample"),
+    }
 
 
 @app.post("/api/problems/{problem_id}/package/sync-polygon")

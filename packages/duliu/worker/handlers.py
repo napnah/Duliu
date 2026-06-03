@@ -284,8 +284,17 @@ async def handle_stress(session: AsyncSession, job: RunnerJob, problem: Problem)
     )
     from duliu.agents.stress_interpret import interpret_stress_report
 
+    if not report.get("ok") and report.get("round") is not None:
+        report["failed_at"] = int(report["round"]) + 1
+
+    from duliu.agents.stress_archive import archive_stress_counterexample
+    counterexample = await archive_stress_counterexample(
+        session, problem, report, job_id=job.id
+    )
     interpretation = await interpret_stress_report(problem, report)
     report = {**report, "interpretation": interpretation}
+    if counterexample:
+        report["counterexample"] = counterexample
     spec = dict(problem.spec_json or {})
     last = dict(spec.get("last_stress") or {})
     last["interpretation"] = interpretation

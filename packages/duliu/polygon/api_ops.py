@@ -360,6 +360,38 @@ async def download_polygon_package(
     }
 
 
+async def import_polygon_package_for_problem(
+    session: AsyncSession,
+    problem: Problem,
+    *,
+    zip_path: str | None = None,
+) -> dict:
+    """Import zip from path or last polygon download / local export."""
+    import os
+    from pathlib import Path
+
+    from duliu.polygon.import_zip import import_polygon_zip
+
+    path = zip_path
+    if not path:
+        meta = _polygon_meta(problem)
+        last_dl = meta.get("last_download") or {}
+        path = last_dl.get("path")
+    if not path:
+        upload = (problem.spec_json or {}).get("polygon_upload") or {}
+        path = upload.get("zip_path")
+    if not path or not Path(path).is_file():
+        base = Path(os.environ.get("DULIU_PACKAGE_DIR", "/tmp/duliu-packages")) / str(problem.id)
+        candidates = sorted(base.glob("*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
+        if candidates:
+            path = str(candidates[0])
+    if not path:
+        return {"ok": False, "reason": "no_zip_found"}
+
+    report = await import_polygon_zip(session, problem, path)
+    return report
+
+
 async def sync_package_with_polygon(
     session: AsyncSession,
     problem: Problem,

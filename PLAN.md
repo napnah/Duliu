@@ -497,6 +497,7 @@ Duliu/
 | **M18** ✅ | Polygon 表单自动上传 + LangGraph 历史 + Session 工具扩展 | [docs/M18-COMPLETE.md](./docs/M18-COMPLETE.md)、`scripts/m18-smoke-test.sh` |
 | **M19** ✅ | Polygon 官方 API + STRESS LLM 预检 | [docs/M19-COMPLETE.md](./docs/M19-COMPLETE.md)、`scripts/m19-smoke-test.sh` |
 | **M20** ✅ | Polygon 包下载 + 题包双向同步 + STRESS 解读 | [docs/M20-COMPLETE.md](./docs/M20-COMPLETE.md)、`scripts/m20-smoke-test.sh` |
+| **M21** ✅ | Polygon zip 导入工件 + 对拍反例归档 | [docs/M21-COMPLETE.md](./docs/M21-COMPLETE.md)、`scripts/m21-smoke-test.sh` |
 
 ---
 

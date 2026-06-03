@@ -19,6 +19,6 @@ Polygon 包下载落盘、STRESS 对拍 LLM 解读、PACKAGE 与 Polygon API 双
 bash scripts/m20-smoke-test.sh
 ```
 
-## 仍待（M21+）
+## 后续
 
-- Polygon 包解压导入工件、对拍反例自动归档
+见 [M21-COMPLETE.md](./M21-COMPLETE.md)。

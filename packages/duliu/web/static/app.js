@@ -1270,6 +1270,35 @@ document.getElementById("btn-stress-interpret")?.addEventListener("click", async
   alert(i.summary || JSON.stringify(i, null, 2));
 });
 
+document.getElementById("btn-polygon-import")?.addEventListener("click", async () => {
+  if (!currentProblemId) return;
+  const out = await api(`/api/problems/${currentProblemId}/polygon/import-package`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  alert(
+    out.ok
+      ? `已导入 ${out.imported_count} 项，新增样例 ${out.samples_added}`
+      : JSON.stringify(out, null, 2)
+  );
+  await refreshPipeline();
+});
+
+document.getElementById("btn-counterexamples")?.addEventListener("click", async () => {
+  if (!currentProblemId) return;
+  const out = await api(`/api/problems/${currentProblemId}/counterexamples`);
+  const items = out.items || [];
+  if (!items.length) {
+    alert("暂无归档反例");
+    return;
+  }
+  const lines = items.slice(-5).map(
+    (x, i) =>
+      `#${i + 1} round=${x.round} ${x.reason}\n${(x.input || "").slice(0, 80)}`
+  );
+  alert(lines.join("\n\n"));
+});
+
 document.getElementById("btn-polygon-api-build")?.addEventListener("click", async () => {
   if (!currentProblemId) return;
   const out = await api(`/api/problems/${currentProblemId}/polygon/api/build-package`, {
