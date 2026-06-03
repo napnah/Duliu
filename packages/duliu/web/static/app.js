@@ -517,9 +517,18 @@ async function refreshPipeline() {
     try {
       const st = await api(`/api/problems/${currentProblemId}/polygon/upload-status`);
       const u = st.upload || {};
-      polyLine.textContent = u.zip_path
-        ? ` · Polygon: ${u.ok ? "就绪" : "缺工件"} ${u.zip_path}`
-        : "";
+      let hint = u.zip_path ? ` · Polygon zip: ${u.ok ? "就绪" : "缺工件"}` : "";
+      try {
+        const apiSt = await api(`/api/problems/${currentProblemId}/polygon/api/status`);
+        if (apiSt.linked_polygon_problem_id) {
+          hint += ` · API#${apiSt.linked_polygon_problem_id}`;
+        } else if (apiSt.api_configured) {
+          hint += " · API 已配置未关联";
+        }
+      } catch {
+        /* ignore */
+      }
+      polyLine.textContent = hint;
     } catch {
       polyLine.textContent = "";
     }
@@ -843,10 +852,14 @@ async function loadSettings() {
     : "OpenAI 未配置（仍可使用规则 Agent）";
   const cfg = await api("/api/workspace/crawler-config");
   document.getElementById("crawler-status").textContent =
-    `白名单: ${cfg.whitelist_hosts.join(", ")} · CF=${cfg.cf_cookie_configured ? cfg.cf_cookie_masked : "未配置"}`;
+    `白名单: ${cfg.whitelist_hosts.join(", ")} · CF=${cfg.cf_cookie_configured ? cfg.cf_cookie_masked : "未配置"} · Polygon API=${cfg.polygon_api_configured ? cfg.polygon_api_key_masked : "未配置"}`;
   document.getElementById("cfg-cf-token").value = "";
   document.getElementById("cfg-luogu-cookie").value = "";
   document.getElementById("cfg-polygon-cookie").value = "";
+  const pk = document.getElementById("cfg-polygon-api-key");
+  const ps = document.getElementById("cfg-polygon-api-secret");
+  if (pk) pk.value = "";
+  if (ps) ps.value = "";
   document.getElementById("cfg-crawl-sites").value = (cfg.crawl_sites || []).join("\n");
 }
 
@@ -864,6 +877,10 @@ async function saveCrawlerConfig() {
   if (cf) body.cf_cookie = cf;
   if (lg) body.luogu_cookie = lg;
   if (poly) body.polygon_cookie = poly;
+  const pkey = document.getElementById("cfg-polygon-api-key")?.value;
+  const psec = document.getElementById("cfg-polygon-api-secret")?.value;
+  if (pkey) body.polygon_api_key = pkey;
+  if (psec) body.polygon_api_secret = psec;
   await api("/api/workspace/crawler-config", { method: "PUT", body: JSON.stringify(body) });
   await loadSettings();
   alert("爬虫配置已保存到服务端");
@@ -1132,6 +1149,30 @@ document.getElementById("btn-polygon-auto")?.addEventListener("click", async () 
   });
   const f = out.form_upload || {};
   alert(f.instructions || JSON.stringify(f, null, 2));
+  await refreshPipeline();
+});
+
+document.getElementById("btn-polygon-api-sync")?.addEventListener("click", async () => {
+  if (!currentProblemId) return;
+  const out = await api(`/api/problems/${currentProblemId}/polygon/api/sync`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  alert(
+    out.ok
+      ? `已同步 Polygon #${out.polygon_problem_id}，packages=${out.package_count ?? "?"}`
+      : JSON.stringify(out, null, 2)
+  );
+  await refreshPipeline();
+});
+
+document.getElementById("btn-polygon-api-build")?.addEventListener("click", async () => {
+  if (!currentProblemId) return;
+  const out = await api(`/api/problems/${currentProblemId}/polygon/api/build-package`, {
+    method: "POST",
+    body: JSON.stringify({ full: false, verify: true, commit_first: true }),
+  });
+  alert(out.ok ? `buildPackage OK · Polygon #${out.polygon_problem_id}` : JSON.stringify(out, null, 2));
   await refreshPipeline();
 });
 

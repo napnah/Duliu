@@ -13,6 +13,8 @@ _ENV_SECRETS = (
     ("DULIU_CF_COOKIE", "crawler_cf_cookie"),
     ("DULIU_LUOGU_COOKIE", "crawler_luogu_cookie"),
     ("DULIU_POLYGON_COOKIE", "crawler_polygon_cookie"),
+    ("DULIU_POLYGON_API_KEY", "polygon_api_key"),
+    ("DULIU_POLYGON_API_SECRET", "polygon_api_secret"),
 )
 
 

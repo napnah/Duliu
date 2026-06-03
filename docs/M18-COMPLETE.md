@@ -20,6 +20,6 @@ Polygon 表单自动上传（实验）、LangGraph checkpoint 历史可视化、
 bash scripts/m18-smoke-test.sh
 ```
 
-## 仍待（M19+）
+## 后续
 
-- Polygon API（`problem.buildPackage` 等）深度集成、STRESS LLM 增强
+见 [M19-COMPLETE.md](./M19-COMPLETE.md)。

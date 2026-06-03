@@ -101,6 +101,41 @@ SESSION_TOOL_SCHEMAS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "polygon_api_sync",
+            "description": "通过 Polygon 官方 API 同步题包列表（需 API Key）",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "polygon_problem_id": {"type": "integer"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "polygon_api_build_package",
+            "description": "调用 Polygon problem.buildPackage（需 API Key 与关联 problem_id）",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "full": {"type": "boolean"},
+                    "verify": {"type": "boolean"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "stress_preflight",
+            "description": "STRESS 预检：检查 std/brute 并返回对拍建议（不排队 job）",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "langgraph_history",
             "description": "查询题目或套题的 LangGraph checkpoint 历史",
             "parameters": {
@@ -197,6 +232,64 @@ async def execute_session_tool(
             return json.dumps({"error": "no_contest_set_context"}, ensure_ascii=False)
         report = await ContestFacade.evaluate_set(session, contest_set)
         return json.dumps(report, ensure_ascii=False)
+
+    if name == "polygon_api_sync":
+        if not problem:
+            return json.dumps({"error": "no_problem_context"}, ensure_ascii=False)
+        from duliu.polygon.api_ops import link_polygon_problem, sync_polygon_packages
+
+        ws_id = problem.workspace_id
+        if args.get("polygon_problem_id"):
+            await link_polygon_problem(
+                session,
+                problem,
+                workspace_id=ws_id,
+                polygon_problem_id=int(args["polygon_problem_id"]),
+            )
+        report = await sync_polygon_packages(session, problem, workspace_id=ws_id)
+        return json.dumps(report, ensure_ascii=False)
+
+    if name == "polygon_api_build_package":
+        if not problem:
+            return json.dumps({"error": "no_problem_context"}, ensure_ascii=False)
+        from duliu.polygon.api_ops import build_polygon_package
+
+        report = await build_polygon_package(
+            session,
+            problem,
+            workspace_id=problem.workspace_id,
+            full=bool(args.get("full")),
+            verify=args.get("verify") is not False,
+        )
+        return json.dumps(report, ensure_ascii=False)
+
+    if name == "stress_preflight":
+        if not problem:
+            return json.dumps({"error": "no_problem_context"}, ensure_ascii=False)
+        from duliu.agents.stress_agent import (
+            _llm_stress_preflight,
+            _rule_stress_preflight,
+        )
+
+        std = await JobFacade.latest_artifact(session, problem.id, "std")
+        brute = await JobFacade.latest_artifact(session, problem.id, "brute")
+        gen = await JobFacade.latest_artifact(session, problem.id, "gen")
+        missing = []
+        if not std:
+            missing.append("std")
+        if not brute:
+            missing.append("brute")
+        pf = _rule_stress_preflight(problem, has_gen=bool(gen))
+        if std and brute:
+            llm = await _llm_stress_preflight(
+                problem,
+                std_preview=(std.content_text or "")[:400],
+                brute_preview=(brute.content_text or "")[:400],
+                has_gen=bool(gen),
+            )
+            if llm:
+                pf = {**pf, **llm}
+        return json.dumps({"ok": not missing, "missing": missing, "preflight": pf}, ensure_ascii=False)
 
     if name == "prepare_polygon_upload":
         if not problem:

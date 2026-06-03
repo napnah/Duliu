@@ -42,6 +42,8 @@ from duliu.api.schemas import (
     CrawlImportResponse,
     SubmissionConfirmRequest,
     FetchAcStdRequest,
+    PolygonApiLinkRequest,
+    PolygonBuildPackageRequest,
     ArtifactVersionOut,
     ArtifactRestoreRequest,
     SessionCreate,
@@ -164,7 +166,7 @@ async def health():
 
     return {
         "status": "ok",
-        "milestone": "M18",
+        "milestone": "M19",
         "langgraph": settings.use_langgraph,
         "langgraph_checkpoint": checkpointer_mode(),
         "monitor_transport": "websocket+sse",
@@ -173,6 +175,8 @@ async def health():
         "import_agent": True,
         "contest_langgraph": settings.use_langgraph,
         "polygon_form_upload": True,
+        "polygon_api": True,
+        "stress_llm": settings.stage_llm_enabled,
         "sse_poll_seconds": settings.sse_poll_seconds,
         "sandbox": sandbox_mode(),
         "isolate_available": isolate_available(),
@@ -431,6 +435,8 @@ async def list_stage_agents():
         "stress_agent": True,
         "import_agent": True,
         "polygon_form_upload": True,
+        "polygon_api": True,
+        "stress_llm_agent": settings.stage_llm_enabled,
         "openai_configured": bool(settings.openai_api_key),
     }
 
@@ -984,6 +990,101 @@ async def polygon_auto_upload(problem_id: uuid.UUID, db: AsyncSession = Depends(
         "export": report,
         "form_upload": report.get("form_upload"),
     }
+
+
+@app.get("/api/polygon/api/status")
+async def polygon_api_status_route(db: AsyncSession = Depends(get_db)):
+    from duliu.polygon.api_ops import polygon_api_status
+
+    ws = await ensure_default_workspace(db)
+    return await polygon_api_status(db, ws.id)
+
+
+@app.get("/api/problems/{problem_id}/polygon/api/status")
+async def problem_polygon_api_status(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    from duliu.polygon.api_ops import polygon_api_status, polygon_problem_id
+
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    ws = await ensure_default_workspace(db)
+    base = await polygon_api_status(db, ws.id)
+    meta = (p.spec_json or {}).get("polygon_api") or {}
+    return {
+        **base,
+        "problem_id": str(problem_id),
+        "linked_polygon_problem_id": polygon_problem_id(p),
+        "last_sync": meta.get("synced_at"),
+        "last_build": (meta.get("last_build") or {}).get("at"),
+    }
+
+
+@app.post("/api/problems/{problem_id}/polygon/api/link")
+async def polygon_api_link(
+    problem_id: uuid.UUID,
+    body: PolygonApiLinkRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from duliu.polygon.api_ops import link_polygon_problem
+
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    ws = await ensure_default_workspace(db)
+    report = await link_polygon_problem(
+        db,
+        p,
+        workspace_id=ws.id,
+        polygon_problem_id=body.polygon_problem_id,
+        pin=body.pin,
+    )
+    await db.commit()
+    await db.refresh(p)
+    return {"problem_id": str(problem_id), **report}
+
+
+@app.post("/api/problems/{problem_id}/polygon/api/sync")
+async def polygon_api_sync(
+    problem_id: uuid.UUID,
+    body: PolygonApiLinkRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from duliu.polygon.api_ops import sync_polygon_packages
+
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    ws = await ensure_default_workspace(db)
+    report = await sync_polygon_packages(db, p, workspace_id=ws.id, pin=body.pin)
+    await db.commit()
+    await db.refresh(p)
+    return {"problem_id": str(problem_id), **report}
+
+
+@app.post("/api/problems/{problem_id}/polygon/api/build-package")
+async def polygon_api_build(
+    problem_id: uuid.UUID,
+    body: PolygonBuildPackageRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from duliu.polygon.api_ops import build_polygon_package
+
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    ws = await ensure_default_workspace(db)
+    report = await build_polygon_package(
+        db,
+        p,
+        workspace_id=ws.id,
+        full=body.full,
+        verify=body.verify,
+        commit_first=body.commit_first,
+        pin=body.pin,
+    )
+    await db.commit()
+    await db.refresh(p)
+    return {"problem_id": str(problem_id), **report}
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobOut)

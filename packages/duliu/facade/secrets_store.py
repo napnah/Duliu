@@ -68,6 +68,8 @@ async def get_crawler_config(session: AsyncSession, workspace: Workspace) -> dic
     cf = await get_workspace_secret(session, workspace.id, "crawler_cf_cookie")
     lg = await get_workspace_secret(session, workspace.id, "crawler_luogu_cookie")
     poly = await get_workspace_secret(session, workspace.id, "crawler_polygon_cookie")
+    pkey = await get_workspace_secret(session, workspace.id, "polygon_api_key")
+    psec = await get_workspace_secret(session, workspace.id, "polygon_api_secret")
     return {
         "crawl_sites": sites if isinstance(sites, list) else [],
         "cf_cookie_configured": bool(cf),
@@ -76,6 +78,8 @@ async def get_crawler_config(session: AsyncSession, workspace: Workspace) -> dic
         "luogu_cookie_masked": _mask(lg),
         "polygon_cookie_configured": bool(poly),
         "polygon_cookie_masked": _mask(poly),
+        "polygon_api_configured": bool(pkey and psec),
+        "polygon_api_key_masked": _mask(pkey),
         "whitelist_hosts": sorted(
             {
                 "codeforces.com",
@@ -101,6 +105,12 @@ async def set_crawler_config(session: AsyncSession, workspace: Workspace, body: 
     if "polygon_cookie" in body:
         await set_workspace_secret(
             session, workspace.id, "crawler_polygon_cookie", body["polygon_cookie"]
+        )
+    if "polygon_api_key" in body:
+        await set_workspace_secret(session, workspace.id, "polygon_api_key", body["polygon_api_key"])
+    if "polygon_api_secret" in body:
+        await set_workspace_secret(
+            session, workspace.id, "polygon_api_secret", body["polygon_api_secret"]
         )
     return await get_crawler_config(session, workspace)
 

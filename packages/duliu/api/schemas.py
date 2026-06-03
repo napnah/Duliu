@@ -249,6 +249,8 @@ class CrawlerConfigOut(BaseModel):
     luogu_cookie_masked: str | None = None
     polygon_cookie_configured: bool = False
     polygon_cookie_masked: str | None = None
+    polygon_api_configured: bool = False
+    polygon_api_key_masked: str | None = None
     whitelist_hosts: list[str] = Field(default_factory=list)
 
 
@@ -257,6 +259,20 @@ class CrawlerConfigSet(BaseModel):
     cf_cookie: str | None = None
     luogu_cookie: str | None = None
     polygon_cookie: str | None = None
+    polygon_api_key: str | None = None
+    polygon_api_secret: str | None = None
+
+
+class PolygonApiLinkRequest(BaseModel):
+    polygon_problem_id: int | None = None
+    pin: str | None = None
+
+
+class PolygonBuildPackageRequest(BaseModel):
+    full: bool = False
+    verify: bool = True
+    commit_first: bool = True
+    pin: str | None = None
 
 
 class CrawlImportRequest(BaseModel):
