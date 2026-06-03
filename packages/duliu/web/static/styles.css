@@ -487,6 +487,23 @@ button, .btn-primary, .btn-secondary, .btn-ghost, .btn-run {
   border: 1px solid var(--border-muted);
   color: var(--muted);
 }
+.tool-list,
+.tool-history {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 12px;
+}
+.tool-list li,
+.tool-history li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-muted);
+  color: var(--muted);
+}
+.tool-history li strong {
+  color: var(--text);
+  font-family: var(--mono);
+}
 .chat-compose {
   display: flex;
   gap: 8px;

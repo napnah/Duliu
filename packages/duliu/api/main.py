@@ -164,13 +164,14 @@ async def health():
 
     return {
         "status": "ok",
-        "milestone": "M16",
+        "milestone": "M17",
         "langgraph": settings.use_langgraph,
         "langgraph_checkpoint": checkpointer_mode(),
         "monitor_transport": "websocket+sse",
         "stage_llm_enabled": settings.stage_llm_enabled,
         "session_tools_enabled": settings.session_tools_enabled,
         "import_agent": True,
+        "contest_langgraph": settings.use_langgraph,
         "sse_poll_seconds": settings.sse_poll_seconds,
         "sandbox": sandbox_mode(),
         "isolate_available": isolate_available(),
@@ -312,6 +313,31 @@ async def approve_contest_eval(
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return ContestSetOut.model_validate(cs)
+
+
+@app.get("/api/contest-sets/langgraph/graph")
+async def contest_langgraph_graph():
+    from duliu.pipeline.contest_langgraph_runner import contest_graph_metadata
+    from duliu.pipeline.langgraph_runner import langgraph_enabled
+
+    return {"enabled": langgraph_enabled(), **contest_graph_metadata()}
+
+
+@app.get("/api/contest-sets/{contest_set_id}/langgraph/status")
+async def contest_langgraph_status(contest_set_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    from duliu.pipeline.checkpoint_saver import checkpointer_mode
+
+    cs = await db.get(ContestSet, contest_set_id)
+    if not cs:
+        raise HTTPException(404, "contest set not found")
+    from duliu.pipeline.contest_langgraph_runner import contest_graph_metadata
+
+    return {
+        "enabled": settings.use_langgraph,
+        "thread_id": (cs.set_eval_json or {}).get("langgraph_thread_id"),
+        "checkpointer": checkpointer_mode(),
+        "graph": contest_graph_metadata(),
+    }
 
 
 @app.get("/api/monitor/events", response_model=list[EventOut])

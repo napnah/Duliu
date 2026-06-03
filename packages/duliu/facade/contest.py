@@ -167,7 +167,8 @@ class ContestFacade:
         return problem
 
     @staticmethod
-    async def evaluate_set(session: AsyncSession, contest_set: ContestSet) -> dict:
+    async def evaluate_set_core(session: AsyncSession, contest_set: ContestSet) -> dict:
+        """Direct set evaluation (no LangGraph wrapper)."""
         report = await run_set_evaluation(session, contest_set)
         contest_set.set_eval_json = report
         contest_set.status = "SET_EVAL_PENDING"
@@ -183,6 +184,20 @@ class ContestFacade:
         )
         await session.flush()
         return report
+
+    @staticmethod
+    async def evaluate_set(session: AsyncSession, contest_set: ContestSet) -> dict:
+        from duliu.config import settings
+
+        if settings.use_langgraph:
+            try:
+                from duliu.pipeline.contest_langgraph_runner import invoke_contest_eval
+
+                return await invoke_contest_eval(session, contest_set)
+            except (ImportError, ModuleNotFoundError):
+                pass
+
+        return await ContestFacade.evaluate_set_core(session, contest_set)
 
     @staticmethod
     async def approve_set_eval(

@@ -82,6 +82,14 @@ SESSION_TOOL_SCHEMAS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "evaluate_contest_set",
+            "description": "运行套题评估（需套题上下文）",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "recent_events",
             "description": "查询题目最近监控事件",
             "parameters": {
@@ -159,7 +167,9 @@ async def execute_session_tool(
             ensure_ascii=False,
         )
 
-    if name == "evaluate_contest_set" and contest_set:
+    if name == "evaluate_contest_set":
+        if not contest_set:
+            return json.dumps({"error": "no_contest_set_context"}, ensure_ascii=False)
         report = await ContestFacade.evaluate_set(session, contest_set)
         return json.dumps(report, ensure_ascii=False)
 

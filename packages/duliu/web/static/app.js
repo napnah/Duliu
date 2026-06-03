@@ -541,12 +541,62 @@ async function refreshStageTimeline(containerId) {
 async function refreshAgentContext() {
   if (!currentProblemId) {
     document.getElementById("agent-context").textContent = "请从侧栏选择题目";
+    await refreshAgentToolsPanel();
     return;
   }
   const p = currentProblem || (await api(`/api/problems/${currentProblemId}`));
   document.getElementById("agent-context").textContent =
     `${p.title} · 当前阶段 ${p.current_stage} · ${p.contest_style}`;
   renderAgentChips(p.current_stage);
+  await refreshAgentToolsPanel();
+}
+
+async function refreshAgentToolsPanel() {
+  const listEl = document.getElementById("agent-tool-list");
+  const histEl = document.getElementById("agent-tool-history");
+  if (!listEl || !histEl) return;
+  try {
+    const meta = await api("/api/session/tools");
+    listEl.innerHTML = "";
+    const tools = meta.tools || [];
+    if (!meta.enabled) {
+      listEl.innerHTML = "<li>Tool Calling 未启用</li>";
+    } else if (!tools.length) {
+      listEl.innerHTML = "<li>无注册工具</li>";
+    } else {
+      for (const name of tools) {
+        const li = document.createElement("li");
+        li.textContent = name;
+        listEl.appendChild(li);
+      }
+    }
+    histEl.innerHTML = "";
+    if (!sessionId) {
+      histEl.innerHTML = "<li class='muted'>发送消息后显示调用记录</li>";
+      return;
+    }
+    const msgs = await api(`/api/sessions/${sessionId}/messages`);
+    const calls = [];
+    for (const m of msgs) {
+      const tj = m.tool_calls_json;
+      const used = (tj && tj.tools) || [];
+      for (const u of used) {
+        calls.push({ tool: u.tool || "?", at: m.created_at });
+      }
+    }
+    const recent = calls.slice(-12).reverse();
+    if (!recent.length) {
+      histEl.innerHTML = "<li class='muted'>本会话尚无工具调用</li>";
+      return;
+    }
+    for (const c of recent) {
+      const li = document.createElement("li");
+      li.innerHTML = `<strong>${c.tool}</strong>`;
+      histEl.appendChild(li);
+    }
+  } catch (e) {
+    listEl.innerHTML = `<li>${e.message}</li>`;
+  }
 }
 
 function renderAgentChips(stage) {
@@ -1061,12 +1111,14 @@ document.getElementById("btn-chat-send").onclick = async () => {
   });
   appendChat("assistant", res.assistant.content, res.tools_used);
   await refreshStageTimeline("agent-stage-timeline");
+  await refreshAgentToolsPanel();
   if (parseRoute().tab === "monitor") await loadEvents();
 };
 
 document.getElementById("btn-agent-clear").onclick = () => {
   document.getElementById("chat-log").innerHTML = "";
   sessionId = null;
+  refreshAgentToolsPanel();
 };
 
 document.getElementById("btn-save-secrets").onclick = async () => {

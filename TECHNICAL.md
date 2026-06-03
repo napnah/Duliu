@@ -1,7 +1,7 @@
 # Duliu 技术说明
 
 > 本文档从技术层面描述 Duliu 系统架构、实现现状与关键技术栈，并附各技术的前置背景知识索引。  
-> 对应规划见 [PLAN.md](./PLAN.md)；里程碑见 [docs/M1-COMPLETE.md](./docs/M1-COMPLETE.md) ~ [docs/M16-COMPLETE.md](./docs/M16-COMPLETE.md)。
+> 对应规划见 [PLAN.md](./PLAN.md)；里程碑见 [docs/M1-COMPLETE.md](./docs/M1-COMPLETE.md) ~ [docs/M17-COMPLETE.md](./docs/M17-COMPLETE.md)。
 
 ---
 
@@ -9,7 +9,7 @@
 
 Duliu 是一套**人机协同（HITL）的算法竞赛出题平台**。技术目标是把「出题」拆成可编排、可验收、可审计的阶段流水线：Agent 或规则引擎负责生成/检查工件，人类在每个 **Gate** 闸口审批；验题侧通过 **Job Worker** 在 Linux 容器内编译运行 C++/Python/Java 程序，完成单点运行、对拍、SPJ 判题、交互题驱动等任务。
 
-**当前代码里程碑**：**M16 已实现**（…M15 STRESS/Session Tools → **M16 IMPORT Agent + Polygon Cookie 探活 + 聊天 Tool chips**）。**Polygon 表单自动上传** 仍在 M17+ 规划中。
+**当前代码里程碑**：**M17 已实现**（…M16 IMPORT/Polygon 探活 → **M17 套题评估 LangGraph（scan_slots→evaluate→finalize）+ Session `evaluate_contest_set` + Agent 工具面板**）。**Polygon 表单自动上传** 仍在 M18+ 规划中。
 
 ---
 
