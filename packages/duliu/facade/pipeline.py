@@ -153,6 +153,9 @@ class PipelineFacade:
         run_id: uuid.UUID | None = None,
     ) -> dict:
         """Core dispatch implementation (used by LangGraph node and direct path)."""
+        from duliu.facade.secrets import apply_workspace_secrets
+
+        await apply_workspace_secrets(session, problem.workspace_id)
         rid = run_id or uuid.uuid4()
         if problem.current_stage != stage_id:
             raise ValueError(f"Problem is at {problem.current_stage}, cannot dispatch {stage_id}")

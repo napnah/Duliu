@@ -1,8 +1,8 @@
-"""Shared OpenAI chat helper for stage agents (M14)."""
+"""OpenAI-compatible chat helper for stage/session agents."""
 
 from __future__ import annotations
 
-from duliu.config import settings
+from duliu.agents.llm_config import get_active_llm
 
 
 async def chat_completion(
@@ -11,17 +11,18 @@ async def chat_completion(
     user: str,
     max_tokens: int = 1200,
 ) -> str | None:
-    if not settings.openai_api_key:
+    cfg = get_active_llm()
+    if not cfg.is_configured():
         return None
     import httpx
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             r = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+                cfg.base_url,
+                headers={"Authorization": f"Bearer {cfg.api_key}"},
                 json={
-                    "model": settings.openai_model,
+                    "model": cfg.model,
                     "messages": [
                         {"role": "system", "content": system},
                         {"role": "user", "content": user},
@@ -42,13 +43,14 @@ async def chat_messages(
     tools: list[dict] | None = None,
     max_tokens: int = 800,
 ) -> dict | None:
-    """Return OpenAI assistant message dict (may include tool_calls)."""
-    if not settings.openai_api_key:
+    """Return assistant message dict (may include tool_calls)."""
+    cfg = get_active_llm()
+    if not cfg.is_configured():
         return None
     import httpx
 
     body: dict = {
-        "model": settings.openai_model,
+        "model": cfg.model,
         "messages": messages,
         "max_tokens": max_tokens,
     }
@@ -58,8 +60,8 @@ async def chat_messages(
     try:
         async with httpx.AsyncClient(timeout=90.0) as client:
             r = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+                cfg.base_url,
+                headers={"Authorization": f"Bearer {cfg.api_key}"},
                 json=body,
             )
             r.raise_for_status()

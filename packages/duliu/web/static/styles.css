@@ -516,6 +516,23 @@ button, .btn-primary, .btn-secondary, .btn-ghost, .btn-run {
   border-bottom: 1px solid var(--border-muted);
   color: var(--muted);
 }
+.llm-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+.llm-provider-block {
+  padding: 12px;
+  border: 1px solid var(--border-muted);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+}
+.llm-provider-name {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
 .chat-compose {
   display: flex;
   gap: 8px;

@@ -56,8 +56,11 @@ Monitor 事件流 → 前端监控中心可见
 
 | 配置项 | 存储 | 用途 |
 |--------|------|------|
-| 各 Agent LLM Key（可继承「默认 Key」） | `workspace_secrets` 加密 | Session / Solver / … |
-| 默认 Provider + Model | `workspace.config` | 见 `agents.llm.yaml` |
+| **LLM 提供商**（OpenAI / DeepSeek / Qwen / GLM） | `workspace_secrets` + `llm_active_provider` | 阶段 Agent、Session Tool Calling |
+| 各厂商 API Key、模型名 | `openai_api_key`、`deepseek_api_key`、`qwen_api_key`、`glm_api_key` 等 | OpenAI 兼容 `chat/completions` |
+| 环境变量 | `.env` | `DULIU_LLM_PROVIDER`、`OPENAI_API_KEY`、`DULIU_DEEPSEEK_API_KEY`、`DULIU_QWEN_API_KEY`、`DULIU_GLM_API_KEY` 及对应 `*_MODEL` |
+
+Web：**设置 → LLM 提供商** 选择当前厂商并保存 Key/模型。API：`GET/PUT /api/workspace/llm-config`。
 
 - 保存后 **无需重启终端**；API 热加载或下次请求读取。
 - **不需要**每次启动在命令行输入 Key。

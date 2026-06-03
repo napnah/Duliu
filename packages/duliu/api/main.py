@@ -36,6 +36,9 @@ from duliu.api.schemas import (
     RunRequest,
     SecretSet,
     SecretsOut,
+    LlmConfigOut,
+    LlmConfigSet,
+    LlmProviderStatus,
     CrawlerConfigOut,
     CrawlerConfigSet,
     CrawlImportRequest,
@@ -129,8 +132,11 @@ async def lifespan(app: FastAPI):
         await ensure_m6_import_stages(session)
         await seed_m6_non_original_demo(session, ws)
         from duliu.db.secret_bootstrap import bootstrap_secrets_from_env
+        from duliu.facade.llm_secrets import apply_llm_secrets, bootstrap_llm_from_env
 
         await bootstrap_secrets_from_env(session, ws)
+        await bootstrap_llm_from_env(session, ws)
+        await apply_llm_secrets(session, ws.id)
         await session.commit()
     if settings.use_langgraph:
         try:
@@ -159,6 +165,18 @@ if WEB_DIR.is_dir():
     app.mount("/assets", StaticFiles(directory=WEB_DIR), name="assets")
 
 
+def _llm_configured() -> bool:
+    from duliu.agents.llm_config import get_active_llm
+
+    return get_active_llm().is_configured()
+
+
+def _llm_provider_name() -> str:
+    from duliu.agents.llm_config import get_active_llm
+
+    return get_active_llm().provider
+
+
 @app.get("/api/health")
 async def health():
     from duliu.pipeline.checkpoint_saver import checkpointer_mode
@@ -177,6 +195,8 @@ async def health():
         "polygon_form_upload": True,
         "polygon_api": True,
         "stress_llm": settings.stage_llm_enabled,
+        "llm_provider": _llm_provider_name(),
+        "llm_configured": _llm_configured(),
         "sse_poll_seconds": settings.sse_poll_seconds,
         "sandbox": sandbox_mode(),
         "isolate_available": isolate_available(),
@@ -437,7 +457,9 @@ async def list_stage_agents():
         "polygon_form_upload": True,
         "polygon_api": True,
         "stress_llm_agent": settings.stage_llm_enabled,
-        "openai_configured": bool(settings.openai_api_key),
+        "llm_configured": _llm_configured(),
+        "llm_provider": _llm_provider_name(),
+        "openai_configured": _llm_configured(),
     }
 
 
@@ -447,7 +469,8 @@ async def list_session_tools():
 
     return {
         "enabled": settings.session_tools_enabled,
-        "openai_configured": bool(settings.openai_api_key),
+        "llm_configured": _llm_configured(),
+        "llm_provider": _llm_provider_name(),
         "tools": [t["function"]["name"] for t in SESSION_TOOL_SCHEMAS],
     }
 
@@ -1163,8 +1186,45 @@ async def session_chat(
     )
 
 
+@app.get("/api/workspace/llm-config", response_model=LlmConfigOut)
+async def get_llm_config_route(db: AsyncSession = Depends(get_db)):
+    from duliu.facade.llm_secrets import get_llm_config
+
+    ws = await ensure_default_workspace(db)
+    cfg = await get_llm_config(db, ws)
+    return LlmConfigOut(
+        active_provider=cfg["active_provider"],
+        providers={k: LlmProviderStatus(**v) for k, v in cfg["providers"].items()},
+        any_configured=cfg["any_configured"],
+        active_configured=cfg["active_configured"],
+    )
+
+
+@app.put("/api/workspace/llm-config", response_model=LlmConfigOut)
+async def set_llm_config_route(body: LlmConfigSet, db: AsyncSession = Depends(get_db)):
+    from duliu.facade.llm_secrets import get_llm_config, set_llm_config
+
+    ws = await ensure_default_workspace(db)
+    payload = body.model_dump(exclude_unset=True)
+    await set_llm_config(db, ws, payload)
+    await db.commit()
+    cfg = await get_llm_config(db, ws)
+    return LlmConfigOut(
+        active_provider=cfg["active_provider"],
+        providers={k: LlmProviderStatus(**v) for k, v in cfg["providers"].items()},
+        any_configured=cfg["any_configured"],
+        active_configured=cfg["active_configured"],
+    )
+
+
 @app.get("/api/workspace/secrets", response_model=SecretsOut)
 async def get_secrets(db: AsyncSession = Depends(get_db)):
+    from duliu.agents.llm_config import get_active_llm
+    from duliu.agents.llm_providers import PROVIDERS
+
+    cfg = get_active_llm()
+    if cfg.is_configured():
+        return SecretsOut(openai_configured=True, openai_masked=_mask(cfg.api_key))
     ws = await ensure_default_workspace(db)
     row = (
         await db.execute(
@@ -1174,39 +1234,28 @@ async def get_secrets(db: AsyncSession = Depends(get_db)):
             )
         )
     ).scalar_one_or_none()
-    if not row or not row.value_encrypted:
-        env_key = settings.openai_api_key
-        if env_key:
-            return SecretsOut(openai_configured=True, openai_masked=_mask(env_key))
-        return SecretsOut(openai_configured=False)
-    return SecretsOut(openai_configured=True, openai_masked=_mask(row.value_encrypted))
+    if row and row.value_encrypted:
+        return SecretsOut(openai_configured=True, openai_masked=_mask(row.value_encrypted))
+    env_key = settings.openai_api_key
+    if env_key:
+        return SecretsOut(openai_configured=True, openai_masked=_mask(env_key))
+    return SecretsOut(openai_configured=False)
 
 
 @app.put("/api/workspace/secrets", response_model=SecretsOut)
 async def set_secrets(body: SecretSet, db: AsyncSession = Depends(get_db)):
+    from duliu.facade.llm_secrets import apply_llm_secrets, set_llm_config
+
     ws = await ensure_default_workspace(db)
     if body.openai_api_key is not None:
-        row = (
-            await db.execute(
-                select(WorkspaceSecret).where(
-                    WorkspaceSecret.workspace_id == ws.id,
-                    WorkspaceSecret.key_name == "openai_api_key",
-                )
-            )
-        ).scalar_one_or_none()
-        if row:
-            row.value_encrypted = body.openai_api_key
-        else:
-            db.add(
-                WorkspaceSecret(
-                    workspace_id=ws.id,
-                    key_name="openai_api_key",
-                    value_encrypted=body.openai_api_key,
-                )
-            )
-        settings.openai_api_key = body.openai_api_key
+        await set_llm_config(db, ws, {"openai_api_key": body.openai_api_key})
+        settings.openai_api_key = body.openai_api_key or ""
     await db.commit()
-    key = body.openai_api_key or settings.openai_api_key
+    await apply_llm_secrets(db, ws.id)
+    from duliu.agents.llm_config import get_active_llm
+
+    cfg = get_active_llm()
+    key = cfg.api_key if cfg.is_configured() else (body.openai_api_key or settings.openai_api_key)
     return SecretsOut(
         openai_configured=bool(key),
         openai_masked=_mask(key) if key else None,

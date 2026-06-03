@@ -31,7 +31,9 @@ class SessionAgent:
         tools_used: list[dict] = []
         text = user_text.strip()
 
-        if settings.openai_api_key and settings.session_tools_enabled and problem:
+        from duliu.agents.llm_config import get_active_llm
+
+        if get_active_llm().is_configured() and settings.session_tools_enabled and problem:
             tool_reply = await self._try_tool_calling(
                 session, problem, text, contest_set=contest_set
             )
@@ -212,7 +214,9 @@ class SessionAgent:
             lines = [f"[{e.source}] {e.type}: {e.message}" for e in events]
             return ("最近事件:\n" + "\n".join(lines), tools_used)
 
-        if settings.openai_api_key and problem:
+        from duliu.agents.llm_config import get_active_llm
+
+        if get_active_llm().is_configured() and problem:
             msg = await chat_messages(
                 [
                     {
@@ -231,8 +235,8 @@ class SessionAgent:
             "- approve STRESS — 通过某阶段 Gate",
             "- 对拍 / 状态 / 最近事件",
         ]
-        if settings.session_tools_enabled and settings.openai_api_key:
-            hints.append("（已启用 OpenAI Tool Calling）")
+        if settings.session_tools_enabled and get_active_llm().is_configured():
+            hints.append(f"（已启用 LLM Tool Calling · {get_active_llm().provider}）")
         if contest_set:
             hints.extend(["- 套题评估 / 通过套题 / 套题状态（套题上下文）"])
         return ("\n".join(hints), tools_used)

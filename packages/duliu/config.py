@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     cors_origins: str = "*"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
+    llm_provider: str = Field(default="openai", validation_alias="DULIU_LLM_PROVIDER")
     use_langgraph: bool = Field(default=False, validation_alias="DULIU_USE_LANGGRAPH")
     langgraph_checkpoint: str = Field(default="memory", validation_alias="DULIU_LANGGRAPH_CHECKPOINT")
     use_isolate: bool = Field(default=False, validation_alias="DULIU_USE_ISOLATE")

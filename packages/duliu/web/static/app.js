@@ -846,10 +846,32 @@ function appendChat(role, text, toolsUsed) {
 
 /* ── Settings ── */
 async function loadSettings() {
-  const s = await api("/api/workspace/secrets");
-  document.getElementById("secret-status").textContent = s.openai_configured
-    ? `OpenAI 已配置：${s.openai_masked}`
-    : "OpenAI 未配置（仍可使用规则 Agent）";
+  const llm = await api("/api/workspace/llm-config");
+  const active = llm.active_provider || "openai";
+  document.getElementById("llm-active-provider").value = active;
+  const lines = [];
+  for (const [id, p] of Object.entries(llm.providers || {})) {
+    lines.push(`${p.label}: ${p.configured ? p.api_key_masked : "未配置"} · ${p.model}`);
+  }
+  document.getElementById("llm-status").textContent = llm.any_configured
+    ? `当前 ${llm.providers[active]?.label || active} · ${lines.join(" | ")}`
+    : "未配置 LLM（仍可使用规则 Agent）";
+  const defaults = {
+    openai: "gpt-4o-mini",
+    deepseek: "deepseek-chat",
+    qwen: "qwen-plus",
+    glm: "glm-4-flash",
+  };
+  for (const id of ["openai", "deepseek", "qwen", "glm"]) {
+    const keyEl = document.getElementById(`llm-${id}-key`);
+    const modelEl = document.getElementById(`llm-${id}-model`);
+    if (keyEl) keyEl.value = "";
+    if (modelEl) {
+      const p = llm.providers?.[id];
+      modelEl.placeholder = p?.model || p?.default_model || defaults[id];
+      modelEl.value = "";
+    }
+  }
   const cfg = await api("/api/workspace/crawler-config");
   document.getElementById("crawler-status").textContent =
     `白名单: ${cfg.whitelist_hosts.join(", ")} · CF=${cfg.cf_cookie_configured ? cfg.cf_cookie_masked : "未配置"} · Polygon API=${cfg.polygon_api_configured ? cfg.polygon_api_key_masked : "未配置"}`;
@@ -1221,13 +1243,19 @@ document.getElementById("btn-agent-clear").onclick = () => {
   refreshAgentToolsPanel();
 };
 
-document.getElementById("btn-save-secrets").onclick = async () => {
-  await api("/api/workspace/secrets", {
-    method: "PUT",
-    body: JSON.stringify({ openai_api_key: document.getElementById("openai-key").value || null }),
-  });
+document.getElementById("btn-save-llm-config").onclick = async () => {
+  const body = {
+    active_provider: document.getElementById("llm-active-provider").value,
+  };
+  for (const id of ["openai", "deepseek", "qwen", "glm"]) {
+    const key = document.getElementById(`llm-${id}-key`)?.value?.trim();
+    const model = document.getElementById(`llm-${id}-model`)?.value?.trim();
+    if (key) body[`${id}_api_key`] = key;
+    if (model) body[`${id}_model`] = model;
+  }
+  await api("/api/workspace/llm-config", { method: "PUT", body: JSON.stringify(body) });
   await loadSettings();
-  alert("已保存");
+  alert("LLM 配置已保存");
 };
 
 document.getElementById("btn-save-crawler-config").onclick = saveCrawlerConfig;

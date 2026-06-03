@@ -237,6 +237,33 @@ class SecretsOut(BaseModel):
     openai_masked: str | None = None
 
 
+class LlmProviderStatus(BaseModel):
+    label: str
+    configured: bool
+    api_key_masked: str | None = None
+    model: str
+    default_model: str
+
+
+class LlmConfigOut(BaseModel):
+    active_provider: str
+    providers: dict[str, LlmProviderStatus]
+    any_configured: bool
+    active_configured: bool
+
+
+class LlmConfigSet(BaseModel):
+    active_provider: str | None = None
+    openai_api_key: str | None = None
+    openai_model: str | None = None
+    deepseek_api_key: str | None = None
+    deepseek_model: str | None = None
+    qwen_api_key: str | None = None
+    qwen_model: str | None = None
+    glm_api_key: str | None = None
+    glm_model: str | None = None
+
+
 class ControlModeSet(BaseModel):
     mode: str
 

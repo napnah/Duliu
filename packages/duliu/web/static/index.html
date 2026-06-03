@@ -246,11 +246,47 @@
           <p class="muted">OpenAI Key 与爬虫 Cookie 保存在服务端工作区。</p>
         </div>
         <div class="card settings-section">
-          <h2 class="card-title">Workspace API</h2>
-          <p id="secret-status" class="muted"></p>
-          <label class="gh-label">OpenAI API Key</label>
-          <input id="openai-key" type="password" class="gh-input" autocomplete="off" />
-          <button type="button" class="btn-primary" id="btn-save-secrets" style="margin-top:12px">保存 OpenAI Key</button>
+          <h2 class="card-title">LLM 提供商</h2>
+          <p id="llm-status" class="muted"></p>
+          <label class="gh-label">当前使用</label>
+          <select id="llm-active-provider" class="gh-input">
+            <option value="openai">OpenAI</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="qwen">通义千问 (Qwen)</option>
+            <option value="glm">智谱 GLM</option>
+          </select>
+          <div class="llm-provider-grid">
+            <div class="llm-provider-block">
+              <h3 class="llm-provider-name">OpenAI</h3>
+              <label class="gh-label">API Key</label>
+              <input id="llm-openai-key" type="password" class="gh-input" autocomplete="off" placeholder="留空不修改" />
+              <label class="gh-label">模型</label>
+              <input id="llm-openai-model" class="gh-input" placeholder="gpt-4o-mini" />
+            </div>
+            <div class="llm-provider-block">
+              <h3 class="llm-provider-name">DeepSeek</h3>
+              <label class="gh-label">API Key</label>
+              <input id="llm-deepseek-key" type="password" class="gh-input" autocomplete="off" placeholder="留空不修改" />
+              <label class="gh-label">模型</label>
+              <input id="llm-deepseek-model" class="gh-input" placeholder="deepseek-chat" />
+            </div>
+            <div class="llm-provider-block">
+              <h3 class="llm-provider-name">通义千问</h3>
+              <label class="gh-label">API Key（DashScope）</label>
+              <input id="llm-qwen-key" type="password" class="gh-input" autocomplete="off" placeholder="留空不修改" />
+              <label class="gh-label">模型</label>
+              <input id="llm-qwen-model" class="gh-input" placeholder="qwen-plus" />
+            </div>
+            <div class="llm-provider-block">
+              <h3 class="llm-provider-name">智谱 GLM</h3>
+              <label class="gh-label">API Key</label>
+              <input id="llm-glm-key" type="password" class="gh-input" autocomplete="off" placeholder="留空不修改" />
+              <label class="gh-label">模型</label>
+              <input id="llm-glm-model" class="gh-input" placeholder="glm-4-flash" />
+            </div>
+          </div>
+          <button type="button" class="btn-primary" id="btn-save-llm-config" style="margin-top:12px">保存 LLM 配置</button>
+          <p class="muted" style="margin-top:8px;font-size:12px">环境变量：DULIU_LLM_PROVIDER、OPENAI_API_KEY、DULIU_DEEPSEEK_API_KEY、DULIU_QWEN_API_KEY、DULIU_GLM_API_KEY</p>
         </div>
         <div class="card settings-section">
           <h2 class="card-title">爬虫（M5 白名单站点）</h2>
