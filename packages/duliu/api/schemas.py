@@ -239,3 +239,31 @@ class SecretsOut(BaseModel):
 
 class ControlModeSet(BaseModel):
     mode: str
+
+
+class CrawlerConfigOut(BaseModel):
+    crawl_sites: list[str] = Field(default_factory=list)
+    cf_cookie_configured: bool = False
+    cf_cookie_masked: str | None = None
+    luogu_cookie_configured: bool = False
+    luogu_cookie_masked: str | None = None
+    polygon_cookie_configured: bool = False
+    polygon_cookie_masked: str | None = None
+    whitelist_hosts: list[str] = Field(default_factory=list)
+
+
+class CrawlerConfigSet(BaseModel):
+    crawl_sites: list[str] | None = None
+    cf_cookie: str | None = None
+    luogu_cookie: str | None = None
+    polygon_cookie: str | None = None
+
+
+class CrawlImportRequest(BaseModel):
+    url: str
+    title: str | None = None
+
+
+class CrawlImportResponse(BaseModel):
+    problem: ProblemOut
+    job: JobOut

@@ -36,6 +36,10 @@ from duliu.api.schemas import (
     RunRequest,
     SecretSet,
     SecretsOut,
+    CrawlerConfigOut,
+    CrawlerConfigSet,
+    CrawlImportRequest,
+    CrawlImportResponse,
     SessionCreate,
     SessionOut,
     StageAction,
@@ -76,7 +80,9 @@ from duliu.db.models import (
 )
 from duliu.db.session import async_session, get_db, init_db
 from duliu.facade.contest import ContestFacade
+from duliu.facade.crawl import CrawlFacade
 from duliu.facade.jobs import JobFacade
+from duliu.facade.secrets_store import get_crawler_config, set_crawler_config
 from duliu.facade.pipeline import PipelineFacade
 from duliu.facade.session import SessionFacade
 from duliu.polygon.export import build_polygon_zip
@@ -107,7 +113,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Duliu API", version="0.4.0", lifespan=lifespan)
+app = FastAPI(title="Duliu API", version="0.5.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins.split(","),
@@ -122,7 +128,7 @@ if WEB_DIR.is_dir():
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "milestone": "M4"}
+    return {"status": "ok", "milestone": "M5"}
 
 
 @app.get("/")
@@ -696,6 +702,89 @@ def _mask(key: str) -> str:
     if len(key) < 8:
         return "****"
     return key[:3] + "..." + key[-4:]
+
+
+@app.get("/api/workspace/crawler-config", response_model=CrawlerConfigOut)
+async def get_crawler_config_route(db: AsyncSession = Depends(get_db)):
+    ws = await ensure_default_workspace(db)
+    cfg = await get_crawler_config(db, ws)
+    return CrawlerConfigOut(**cfg)
+
+
+@app.put("/api/workspace/crawler-config", response_model=CrawlerConfigOut)
+async def set_crawler_config_route(body: CrawlerConfigSet, db: AsyncSession = Depends(get_db)):
+    ws = await ensure_default_workspace(db)
+    cfg = await set_crawler_config(db, ws, body.model_dump(exclude_unset=True))
+    await db.commit()
+    return CrawlerConfigOut(**cfg)
+
+
+@app.post("/api/crawl/import", response_model=CrawlImportResponse)
+async def crawl_import(body: CrawlImportRequest, db: AsyncSession = Depends(get_db)):
+    ws = await ensure_default_workspace(db)
+    try:
+        problem = await CrawlFacade.create_import_problem(
+            db, ws, url=body.url, title=body.title
+        )
+        job = await CrawlFacade.enqueue_crawl(db, problem, url=body.url, workspace_id=ws.id)
+        await db.commit()
+        await db.refresh(problem)
+        await db.refresh(job)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return CrawlImportResponse(
+        problem=ProblemOut.model_validate(problem),
+        job=JobOut.model_validate(job),
+    )
+
+
+@app.post("/api/jobs/{job_id}/cancel", response_model=JobOut)
+async def cancel_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    job = await JobFacade.get_job(db, job_id)
+    if not job:
+        raise HTTPException(404, "job not found")
+    try:
+        job = await JobFacade.cancel_job(db, job)
+        await db.commit()
+        await db.refresh(job)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return JobOut.model_validate(job)
+
+
+@app.get("/api/monitor/events/export")
+async def export_events(
+    problem_id: uuid.UUID | None = None,
+    contest_set_id: uuid.UUID | None = None,
+    limit: int = 500,
+    db: AsyncSession = Depends(get_db),
+):
+    import json
+
+    q = select(Event).order_by(Event.created_at.desc()).limit(min(limit, 2000))
+    if problem_id:
+        q = q.where(Event.problem_id == problem_id)
+    if contest_set_id:
+        q = q.where(Event.contest_set_id == contest_set_id)
+    rows = (await db.execute(q)).scalars().all()
+    payload = [
+        {
+            "id": str(e.id),
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+            "source": e.source,
+            "type": e.type,
+            "message": e.message,
+            "problem_id": str(e.problem_id) if e.problem_id else None,
+            "run_id": str(e.run_id) if e.run_id else None,
+        }
+        for e in rows
+    ]
+    body = json.dumps(payload, ensure_ascii=False, indent=2)
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=duliu-events.json"},
+    )
 
 
 def run() -> None:

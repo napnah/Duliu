@@ -176,6 +176,49 @@ class JobFacade:
         return job
 
     @staticmethod
+    async def enqueue_crawl(
+        session: AsyncSession,
+        problem: Problem,
+        *,
+        url: str,
+        workspace_id: str,
+    ) -> RunnerJob:
+        job = RunnerJob(
+            problem_id=problem.id,
+            kind=JobKind.CRAWL_IMPORT.value,
+            status=JobStatus.QUEUED.value,
+            payload_json={"url": url, "workspace_id": workspace_id},
+        )
+        session.add(job)
+        await session.flush()
+        await emit_event(
+            session,
+            problem_id=problem.id,
+            type="crawler.job.queued",
+            message=f"Queued crawl import: {url[:80]}",
+            source="crawler",
+            job_id=job.id,
+        )
+        return job
+
+    @staticmethod
+    async def cancel_job(session: AsyncSession, job: RunnerJob) -> RunnerJob:
+        if job.status in (JobStatus.DONE.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value):
+            raise ValueError(f"Cannot cancel job in status {job.status}")
+        job.status = JobStatus.CANCELLED.value
+        job.result_json = {"cancelled": True}
+        await emit_event(
+            session,
+            problem_id=job.problem_id,
+            type="runner.job.cancelled",
+            message=f"Job {job.id} cancelled",
+            source="runner",
+            job_id=job.id,
+        )
+        await session.flush()
+        return job
+
+    @staticmethod
     async def get_job(session: AsyncSession, job_id: uuid.UUID) -> RunnerJob | None:
         return await session.get(RunnerJob, job_id)
 

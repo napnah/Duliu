@@ -1,3 +1,7 @@
+# M5 标准栈：postgres + API + Worker（分离）
+# 用法: docker compose up --build -d
+# 开发单容器仍可用: docker compose -f docker-compose.m1.yml up -d
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -18,30 +22,47 @@ services:
   api:
     build:
       context: .
-      dockerfile: docker/Dockerfile.api
+      dockerfile: docker/Dockerfile.m1
+      args:
+        APT_MIRROR: ${APT_MIRROR:-mirrors.aliyun.com}
+    entrypoint: []
+    command: ["uvicorn", "duliu.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql+asyncpg://duliu:duliu@postgres:5432/duliu
       DULIU_RUNNER_WORK_DIR: /tmp/duliu-runner
       CORS_ORIGINS: "*"
+      DULIU_DOCS_DIR: /app/docs
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DULIU_PACKAGE_DIR: /tmp/duliu-packages
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - ./packages:/app/packages:ro
+      - ./docs:/app/docs:ro
 
   worker:
     build:
       context: .
-      dockerfile: docker/Dockerfile.worker
+      dockerfile: docker/Dockerfile.m1
+      args:
+        APT_MIRROR: ${APT_MIRROR:-mirrors.aliyun.com}
+    entrypoint: []
+    command: ["python", "-m", "duliu.worker"]
     environment:
       DATABASE_URL: postgresql+asyncpg://duliu:duliu@postgres:5432/duliu
       DULIU_RUNNER_WORK_DIR: /tmp/duliu-runner
       JOB_POLL_SECONDS: "1"
+      DULIU_PACKAGE_DIR: /tmp/duliu-packages
     depends_on:
       postgres:
         condition: service_healthy
       api:
         condition: service_started
+    volumes:
+      - ./packages:/app/packages:ro
 
 volumes:
   duliu_pg:

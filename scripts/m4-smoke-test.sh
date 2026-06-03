@@ -4,7 +4,7 @@ set -euo pipefail
 BASE="${1:-http://localhost:8000}"
 
 echo "==> M4 smoke @ $BASE"
-curl -sf "$BASE/api/health" | grep -q M4
+curl -sf "$BASE/api/health" | grep -qE 'M4|M5'
 echo "health OK"
 
 TREE=$(curl -sf "$BASE/api/tree")

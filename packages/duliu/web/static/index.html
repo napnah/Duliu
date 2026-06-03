@@ -48,6 +48,9 @@
         <div class="page-hero">
           <h1>工作区</h1>
           <p class="muted">从左侧选择套题或单题。单题工作流：流水线 → 编辑器 / Agent。</p>
+          <div class="btn-row" style="margin-top:12px">
+            <button type="button" class="btn-primary" id="btn-crawl-import">从 URL 导入非原创题</button>
+          </div>
         </div>
         <div class="card-grid" id="home-recent"></div>
       </section>
@@ -190,7 +193,10 @@
       <section id="view-monitor" class="view hidden">
         <div class="page-head compact">
           <h1>监控事件</h1>
-          <label class="gh-check">run_id <input id="filter-run-id" class="gh-input gh-input-inline" placeholder="uuid" /></label>
+          <div class="btn-row">
+            <label class="gh-check">run_id <input id="filter-run-id" class="gh-input gh-input-inline" placeholder="uuid" /></label>
+            <button type="button" class="btn-secondary btn-sm" id="btn-export-events">导出 JSON</button>
+          </div>
         </div>
         <ul id="event-list" class="event-feed"></ul>
       </section>
@@ -199,25 +205,27 @@
       <section id="view-settings" class="view hidden">
         <div class="page-hero">
           <h1>设置</h1>
-          <p class="muted">API 密钥与爬取配置（爬取 Token 仅存于本机浏览器）。</p>
+          <p class="muted">OpenAI Key 与爬虫 Cookie 保存在服务端工作区。</p>
         </div>
         <div class="card settings-section">
           <h2 class="card-title">Workspace API</h2>
           <p id="secret-status" class="muted"></p>
           <label class="gh-label">OpenAI API Key</label>
           <input id="openai-key" type="password" class="gh-input" autocomplete="off" />
-          <button type="button" class="btn-primary" id="btn-save-secrets" style="margin-top:12px">保存到服务端</button>
+          <button type="button" class="btn-primary" id="btn-save-secrets" style="margin-top:12px">保存 OpenAI Key</button>
         </div>
         <div class="card settings-section">
-          <h2 class="card-title">爬取与外部 Token</h2>
-          <p class="muted">以下仅保存在本机 localStorage，不会上传服务器。</p>
-          <label class="gh-label">Codeforces Session / Token</label>
-          <input id="cfg-cf-token" type="password" class="gh-input" />
-          <label class="gh-label">Polygon 登录 Cookie（可选）</label>
-          <textarea id="cfg-polygon-cookie" class="gh-input" rows="2"></textarea>
-          <label class="gh-label">爬取站点列表（每行一个 URL）</label>
-          <textarea id="cfg-crawl-sites" class="gh-input" rows="5" placeholder="https://codeforces.com/...\nhttps://..."></textarea>
-          <button type="button" class="btn-primary" id="btn-save-local-config" style="margin-top:12px">保存本地配置</button>
+          <h2 class="card-title">爬虫（M5 白名单站点）</h2>
+          <p id="crawler-status" class="muted"></p>
+          <label class="gh-label">Codeforces Cookie</label>
+          <input id="cfg-cf-token" type="password" class="gh-input" placeholder="留空表示不修改已保存值" />
+          <label class="gh-label">洛谷 Cookie</label>
+          <input id="cfg-luogu-cookie" type="password" class="gh-input" placeholder="留空表示不修改" />
+          <label class="gh-label">Polygon Cookie（可选）</label>
+          <textarea id="cfg-polygon-cookie" class="gh-input" rows="2" placeholder="留空表示不修改"></textarea>
+          <label class="gh-label">常用爬取 URL（每行一个）</label>
+          <textarea id="cfg-crawl-sites" class="gh-input" rows="5" placeholder="https://codeforces.com/problemset/problem/1/A"></textarea>
+          <button type="button" class="btn-primary" id="btn-save-crawler-config" style="margin-top:12px">保存爬虫配置</button>
         </div>
       </section>
     </main>

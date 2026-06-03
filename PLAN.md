@@ -1,7 +1,7 @@
 # Duliu — 全自动算法竞赛出题 AI Agent 系统规划
 
 > 版本：v0.4  
-> 状态：**M4 已实现**（见 [docs/M4-COMPLETE.md](./docs/M4-COMPLETE.md)）；M5+ 待实现  
+> 状态：**M5 已实现**（见 [docs/M5-COMPLETE.md](./docs/M5-COMPLETE.md)）；M6+ 待实现  
 > 技术栈：LangGraph · **Postgres** · Docker(Linux) · Isolate · **Facade 封装流水线** · Web 监控+Session · Worker  
 > 决策记录：[docs/decisions.md](./docs/decisions.md) · 运行架构：[docs/architecture-runtime.md](./docs/architecture-runtime.md)
 
@@ -480,8 +480,8 @@ Duliu/
 | **M1** ✅ | 单题 · PG · Web Gate · Runner · **stdin 一键运行** · 严格对拍 | 见 [docs/M1-COMPLETE.md](./docs/M1-COMPLETE.md)、`scripts/m1-smoke-test.sh` |
 | **M2** ✅ | + OI + SPJ + 三语言 + S6 + Web Session Agent | 见 [docs/M2-COMPLETE.md](./docs/M2-COMPLETE.md)、`scripts/m2-smoke-test.sh` |
 | **M3** ✅ | + 交互/通信 + Polygon 导出 + S7~S8 | [docs/M3-COMPLETE.md](./docs/M3-COMPLETE.md)、`scripts/m3-smoke-test.sh` |
-| **M4** | 套题 13/4 + Set Evaluator | Web 套题树 + 难度曲线 |
-| **M5** | 爬虫 + Worker 可选(D-08) + CLI 命令齐全 | compose 一键起 |
+| **M4** ✅ | 套题 13/4 + Set Evaluator | [docs/M4-COMPLETE.md](./docs/M4-COMPLETE.md) |
+| **M5** ✅ | 爬虫 + Worker 分离 + CLI | [docs/M5-COMPLETE.md](./docs/M5-COMPLETE.md)、`docker-compose.yml` |
 
 ---
 

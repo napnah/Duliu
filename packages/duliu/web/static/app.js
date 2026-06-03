@@ -1,6 +1,4 @@
 const API = "";
-const LS_CFG = "duliu.localConfig";
-
 let currentProblemId = null;
 let currentContestSetId = null;
 let currentSlotLabel = "A";
@@ -529,23 +527,32 @@ async function loadSettings() {
   document.getElementById("secret-status").textContent = s.openai_configured
     ? `OpenAI 已配置：${s.openai_masked}`
     : "OpenAI 未配置（仍可使用规则 Agent）";
-  const cfg = JSON.parse(localStorage.getItem(LS_CFG) || "{}");
-  document.getElementById("cfg-cf-token").value = cfg.cfToken || "";
-  document.getElementById("cfg-polygon-cookie").value = cfg.polygonCookie || "";
-  document.getElementById("cfg-crawl-sites").value = (cfg.crawlSites || []).join("\n");
+  const cfg = await api("/api/workspace/crawler-config");
+  document.getElementById("crawler-status").textContent =
+    `白名单: ${cfg.whitelist_hosts.join(", ")} · CF=${cfg.cf_cookie_configured ? cfg.cf_cookie_masked : "未配置"}`;
+  document.getElementById("cfg-cf-token").value = "";
+  document.getElementById("cfg-luogu-cookie").value = "";
+  document.getElementById("cfg-polygon-cookie").value = "";
+  document.getElementById("cfg-crawl-sites").value = (cfg.crawl_sites || []).join("\n");
 }
 
-function saveLocalConfig() {
-  const cfg = {
-    cfToken: document.getElementById("cfg-cf-token").value,
-    polygonCookie: document.getElementById("cfg-polygon-cookie").value,
-    crawlSites: document.getElementById("cfg-crawl-sites").value
-      .split("\n")
+async function saveCrawlerConfig() {
+  const body = {
+    crawl_sites: document
+      .getElementById("cfg-crawl-sites")
+      .value.split("\n")
       .map((x) => x.trim())
       .filter(Boolean),
   };
-  localStorage.setItem(LS_CFG, JSON.stringify(cfg));
-  alert("本地配置已保存");
+  const cf = document.getElementById("cfg-cf-token").value;
+  const lg = document.getElementById("cfg-luogu-cookie").value;
+  const poly = document.getElementById("cfg-polygon-cookie").value;
+  if (cf) body.cf_cookie = cf;
+  if (lg) body.luogu_cookie = lg;
+  if (poly) body.polygon_cookie = poly;
+  await api("/api/workspace/crawler-config", { method: "PUT", body: JSON.stringify(body) });
+  await loadSettings();
+  alert("爬虫配置已保存到服务端");
 }
 
 /* ── Event bindings ── */
@@ -791,7 +798,27 @@ document.getElementById("btn-save-secrets").onclick = async () => {
   alert("已保存");
 };
 
-document.getElementById("btn-save-local-config").onclick = saveLocalConfig;
+document.getElementById("btn-save-crawler-config").onclick = saveCrawlerConfig;
+
+document.getElementById("btn-crawl-import").onclick = async () => {
+  const url = prompt("题目 URL（Codeforces / AtCoder / 洛谷）");
+  if (!url) return;
+  const title = prompt("标题（可选）", "") || null;
+  const out = await api("/api/crawl/import", {
+    method: "POST",
+    body: JSON.stringify({ url, title }),
+  });
+  alert(`已排队导入 job=${out.job.id}`);
+  await loadTree();
+  navigate(`/problem/${out.problem.id}/pipeline`);
+};
+
+document.getElementById("btn-export-events").onclick = () => {
+  let u = "/api/monitor/events/export?limit=500";
+  if (currentProblemId) u += `&problem_id=${currentProblemId}`;
+  if (currentContestSetId) u += `&contest_set_id=${currentContestSetId}`;
+  window.open(u, "_blank");
+};
 
 document.getElementById("filter-run-id")?.addEventListener("change", loadEvents);
 

@@ -43,6 +43,10 @@
 
 实现按 [PLAN.md §16](./PLAN.md#16-实施路线图) 里程碑推进。
 
+## M5 ✅ 已完成
+
+详见 [docs/M5-COMPLETE.md](./docs/M5-COMPLETE.md)。爬虫导入、CLI、`docker compose up`（api+worker）。
+
 ## M4 ✅ 已完成
 
 详见 [docs/M4-COMPLETE.md](./docs/M4-COMPLETE.md)。套题树、Set Evaluator、难度曲线仪表盘。

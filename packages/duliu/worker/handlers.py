@@ -19,6 +19,7 @@ from duliu.runner.languages import compile_source
 from duliu.runner.interactive import run_interactive
 from duliu.runner.spj import run_checker
 from duliu.polygon.export import export_polygon_to_dir
+from duliu.crawler.import_problem import crawl_and_import
 
 
 async def _resolve_source(
@@ -358,6 +359,23 @@ async def handle_polygon_export(session: AsyncSession, job: RunnerJob, problem: 
     )
 
 
+async def handle_crawl_import(session: AsyncSession, job: RunnerJob, problem: Problem) -> None:
+    payload = job.payload_json
+    url = payload.get("url")
+    ws_id = payload.get("workspace_id")
+    if not url or not ws_id:
+        job.status = JobStatus.FAILED.value
+        job.result_json = {"error": "missing_url_or_workspace"}
+        return
+    import uuid as _uuid
+
+    report = await crawl_and_import(
+        session, problem, url=url, workspace_id=_uuid.UUID(str(ws_id))
+    )
+    job.status = JobStatus.DONE.value
+    job.result_json = report
+
+
 async def process_job(session: AsyncSession, job_id: uuid.UUID) -> None:
     job = await session.get(RunnerJob, job_id)
     if not job or job.status != JobStatus.QUEUED.value:
@@ -383,6 +401,8 @@ async def process_job(session: AsyncSession, job_id: uuid.UUID) -> None:
             await handle_interactive(session, job, problem)
         elif job.kind == JobKind.POLYGON_EXPORT.value:
             await handle_polygon_export(session, job, problem)
+        elif job.kind == JobKind.CRAWL_IMPORT.value:
+            await handle_crawl_import(session, job, problem)
         else:
             job.status = JobStatus.FAILED.value
             job.result_json = {"error": f"unknown_kind_{job.kind}"}

@@ -34,6 +34,7 @@ class JobKind(str, enum.Enum):
     RUN_COMPARE = "run_compare"
     INTERACTIVE_RUN = "interactive_run"
     POLYGON_EXPORT = "polygon_export"
+    CRAWL_IMPORT = "crawl_import"
 
 
 # M1 stage chain (ORIGINAL, skip IDEA for bootstrap)
