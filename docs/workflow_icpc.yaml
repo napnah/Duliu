@@ -26,7 +26,7 @@ scoring:
 problem_type_notes:
   TRADITIONAL: default
   INTERACTIVE: require_interactor_before_stress
-  COMMUNICATION: team_size_hint: 3
+  COMMUNICATION: "team_size_hint: 3"
   SUBMIT_ANSWER: spj_required
 
 set_evaluation:

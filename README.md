@@ -20,6 +20,8 @@
 | [docs/integrations.md](./docs/integrations.md) | LLM 调用方式、LangGraph、爬虫与 Web 配 Key |
 | [docs/web-editor-and-sandbox.md](./docs/web-editor-and-sandbox.md) | Monaco 编辑、一键对拍与沙箱分工 |
 | [docs/non-original-workflow.md](./docs/non-original-workflow.md) | 非原创：网络标程、对拍、原题提交 |
+| [docs/wsl-windows.md](./docs/wsl-windows.md) | **Windows 主机：WSL2 + Docker** |
+| [docs/M1-quickstart.md](./docs/M1-quickstart.md) | M1 启动与验收 |
 
 ## 需求摘要（v0.4 已锁定）
 
@@ -40,3 +42,28 @@
 15. Polygon package 导出
 
 实现按 [PLAN.md §16](./PLAN.md#16-实施路线图) 里程碑推进。
+
+## M3 ✅ 已完成
+
+详见 [docs/M3-COMPLETE.md](./docs/M3-COMPLETE.md)。
+
+## M2 ✅ 已完成
+
+详见 [docs/M2-COMPLETE.md](./docs/M2-COMPLETE.md)。M1 能力保留。
+
+## M1 ✅ 已完成
+
+详见 [docs/M1-COMPLETE.md](./docs/M1-COMPLETE.md)。
+
+**Windows 用户**：在 **WSL2** 中执行（[docs/wsl-windows.md](./docs/wsl-windows.md)）。
+
+```bash
+# WSL 首次配置 Docker
+bash scripts/wsl-setup-docker.sh && source ~/.bashrc
+# 若拉镜像 DNS 超时（Clash）：bash scripts/wsl-fix-dns.sh → Windows 执行 wsl --shutdown → 重开 WSL
+
+docker compose up --build
+# → http://localhost:8000
+```
+
+详见 [docs/M1-quickstart.md](./docs/M1-quickstart.md)。

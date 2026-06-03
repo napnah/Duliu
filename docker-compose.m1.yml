@@ -1,0 +1,46 @@
+# M1 简化栈：postgres + 单容器（api+worker）
+# 用法: docker compose -f docker-compose.m1.yml up --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: duliu
+      POSTGRES_PASSWORD: duliu
+      POSTGRES_DB: duliu
+    ports:
+      - "5432:5432"
+    volumes:
+      - duliu_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U duliu"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+  duliu:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.m1
+      args:
+        # 国内/WSL 网络不稳时可改为 mirrors.tuna.tsinghua.edu.cn
+        APT_MIRROR: ${APT_MIRROR:-mirrors.aliyun.com}
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://duliu:duliu@postgres:5432/duliu
+      DULIU_RUNNER_WORK_DIR: /tmp/duliu-runner
+      JOB_POLL_SECONDS: "1"
+      CORS_ORIGINS: "*"
+      DULIU_DOCS_DIR: /app/docs
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DULIU_PACKAGE_DIR: /tmp/duliu-packages
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./packages:/app/packages:ro
+      - ./docs:/app/docs:ro
+
+volumes:
+  duliu_pg:

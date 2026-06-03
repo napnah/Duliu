@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: duliu
+      POSTGRES_PASSWORD: duliu
+      POSTGRES_DB: duliu
+    ports:
+      - "5432:5432"
+    volumes:
+      - duliu_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U duliu"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://duliu:duliu@postgres:5432/duliu
+      DULIU_RUNNER_WORK_DIR: /tmp/duliu-runner
+      CORS_ORIGINS: "*"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    environment:
+      DATABASE_URL: postgresql+asyncpg://duliu:duliu@postgres:5432/duliu
+      DULIU_RUNNER_WORK_DIR: /tmp/duliu-runner
+      JOB_POLL_SECONDS: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+volumes:
+  duliu_pg:

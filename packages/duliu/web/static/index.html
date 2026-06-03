@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Duliu M3</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <header class="top">
+    <h1>Duliu</h1>
+    <span class="badge">M3</span>
+    <button id="btn-refresh">刷新</button>
+    <button id="btn-new-problem">新建单题</button>
+    <button id="btn-new-contest-icpc">新建 ICPC 套题</button>
+    <button id="btn-new-contest-oi">新建 OI 套题</button>
+    <button id="btn-settings">密钥</button>
+  </header>
+  <div class="layout layout-m2">
+    <aside class="sidebar">
+      <h2>导航</h2>
+      <div id="tree-workspace" class="muted"></div>
+      <h3 class="muted">套题</h3>
+      <ul id="tree-contests" class="tree-sub"></ul>
+      <h3 class="muted">单题</h3>
+      <ul id="tree-problems"></ul>
+    </aside>
+    <main class="main">
+      <section id="problem-meta" class="card hidden">
+        <h2 id="problem-title"></h2>
+        <p>阶段: <strong id="problem-stage"></strong> · 风格: <span id="problem-style"></span> · 控制: <span id="problem-control"></span></p>
+        <div id="stages-bar" class="stages"></div>
+        <div class="gate-actions">
+          <button id="btn-approve">通过当前阶段</button>
+          <button id="btn-dispatch">调度当前阶段 Agent</button>
+          <input id="gate-note" placeholder="备注（可选）" />
+        </div>
+      </section>
+      <section class="editor-row card hidden" id="editor-section">
+        <div class="editor-tabs">
+          <select id="artifact-kind"></select>
+          <select id="artifact-language" title="工件语言">
+            <option value="cpp">cpp</option>
+            <option value="python">python</option>
+            <option value="java">java</option>
+          </select>
+          <button id="btn-save">保存</button>
+          <button id="btn-compile">仅编译</button>
+          <button id="btn-run">运行</button>
+          <button id="btn-compare">对比运行</button>
+          <button id="btn-stress-quick">快速对拍</button>
+          <button id="btn-interactive" type="button">交互运行</button>
+          <button id="btn-polygon-zip" type="button">导出 Polygon zip</button>
+          <button id="btn-dispatch-package" type="button">调度 PACKAGE</button>
+        </div>
+        <div id="monaco-editor" class="monaco"></div>
+      </section>
+      <section class="run-panel card hidden" id="run-section">
+        <h3>运行（沙箱）</h3>
+        <label>程序 <select id="run-program"><option value="std">标程 std</option><option value="brute">暴力 brute</option><option value="checker">checker</option></select></label>
+        <label class="checkbox"><input type="checkbox" id="use-draft" /> 使用当前编辑器草稿</label>
+        <label class="checkbox"><input type="checkbox" id="use-checker" /> SPJ checker 判题</label>
+        <div class="io-grid">
+          <div>
+            <label>Input</label>
+            <textarea id="run-input" rows="5"></textarea>
+            <label>Expected（可选，字节比较 AC/WA）</label>
+            <textarea id="run-expected" rows="3"></textarea>
+            <button id="btn-load-sample" type="button">加载样例</button>
+          </div>
+          <div>
+            <label>Output</label>
+            <pre id="run-output" class="output"></pre>
+            <p id="run-verdict" class="verdict"></p>
+          </div>
+        </div>
+      </section>
+      <section class="card">
+        <h3>监控</h3>
+        <label>run_id 筛选 <input id="filter-run-id" placeholder="uuid（可选）" /></label>
+        <ul id="event-list" class="events"></ul>
+      </section>
+    </main>
+    <aside class="session-panel card">
+      <h3>Session Agent</h3>
+      <div id="chat-log" class="chat-log"></div>
+      <textarea id="chat-input" rows="3" placeholder="dispatch ADVERSARIAL_REVIEW / 状态 / 对拍"></textarea>
+      <button id="btn-chat-send">发送</button>
+    </aside>
+  </div>
+  <dialog id="dlg-settings">
+    <h3>Workspace 密钥</h3>
+    <p id="secret-status" class="muted"></p>
+    <label>OpenAI API Key <input id="openai-key" type="password" /></label>
+    <div class="dlg-actions">
+      <button id="btn-save-secrets">保存</button>
+      <button id="btn-close-settings">关闭</button>
+    </div>
+  </dialog>
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs/loader.js"></script>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

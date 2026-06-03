@@ -1,0 +1,584 @@
+import hashlib
+import uuid
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from duliu.api.schemas import (
+    ArtifactOut,
+    ArtifactSave,
+    ChatRequest,
+    ChatResponse,
+    CompareRunRequest,
+    CompileRequest,
+    ContestSetCreate,
+    ContestSetOut,
+    ControlModeSet,
+    DispatchRequest,
+    EventOut,
+    InteractiveRunRequest,
+    JobOut,
+    MessageOut,
+    ProblemCreate,
+    ProblemOut,
+    RunRequest,
+    SecretSet,
+    SecretsOut,
+    SessionCreate,
+    SessionOut,
+    StageAction,
+    StressRequest,
+    TreeOut,
+    WorkspaceOut,
+)
+from duliu.config import settings
+from duliu.db.bootstrap import (
+    create_contest_set,
+    ensure_default_workspace,
+    ensure_m2_stages,
+    ensure_m3_stages,
+    seed_communication_demo,
+    refresh_interactive_interactor,
+    seed_interactive_demo,
+    seed_package_ready_problem,
+    seed_demo_contest_set,
+    seed_demo_problem,
+    seed_oi_contest_set,
+    seed_adversarial_ready_problem,
+    seed_oi_demo_problem,
+    seed_spj_demo_problem,
+)
+from duliu.db.models import (
+    M3_STAGE_ORDER,
+    Artifact,
+    ContestSet,
+    Event,
+    Problem,
+    ProblemStage,
+    Session,
+    StageStatus,
+    Workspace,
+    WorkspaceSecret,
+)
+from duliu.db.session import async_session, get_db, init_db
+from duliu.facade.jobs import JobFacade
+from duliu.facade.pipeline import PipelineFacade
+from duliu.facade.session import SessionFacade
+from duliu.polygon.export import build_polygon_zip
+from duliu.workflow.loader import contest_defaults
+
+WEB_DIR = Path(__file__).resolve().parent.parent / "web" / "static"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    async with async_session() as session:
+        ws = await ensure_default_workspace(session)
+        await ensure_m2_stages(session)
+        await ensure_m3_stages(session)
+        await seed_demo_contest_set(session, ws)
+        await seed_oi_contest_set(session, ws)
+        await seed_demo_problem(session, ws)
+        await seed_oi_demo_problem(session, ws)
+        await seed_spj_demo_problem(session, ws)
+        await seed_adversarial_ready_problem(session, ws)
+        await seed_interactive_demo(session, ws)
+        await refresh_interactive_interactor(session, ws)
+        await seed_communication_demo(session, ws)
+        await seed_package_ready_problem(session, ws)
+        await session.commit()
+    yield
+
+
+app = FastAPI(title="Duliu API", version="0.3.0", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins.split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+if WEB_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=WEB_DIR), name="assets")
+
+
+@app.get("/api/health")
+async def health():
+    return {"status": "ok", "milestone": "M3"}
+
+
+@app.get("/")
+async def index():
+    index_path = WEB_DIR / "index.html"
+    if index_path.is_file():
+        return FileResponse(index_path)
+    return {"service": "duliu", "docs": "/docs"}
+
+
+@app.get("/api/tree", response_model=TreeOut)
+async def get_tree(db: AsyncSession = Depends(get_db)):
+    ws = await ensure_default_workspace(db)
+    cs = (await db.execute(select(ContestSet).where(ContestSet.workspace_id == ws.id))).scalars().all()
+    probs = (await db.execute(select(Problem).where(Problem.workspace_id == ws.id))).scalars().all()
+    return TreeOut(
+        workspace=WorkspaceOut.model_validate(ws),
+        contest_sets=[ContestSetOut.model_validate(c) for c in cs],
+        problems=[ProblemOut.model_validate(p) for p in probs],
+    )
+
+
+@app.post("/api/contest-sets", response_model=ContestSetOut)
+async def post_contest_set(body: ContestSetCreate, db: AsyncSession = Depends(get_db)):
+    ws = await ensure_default_workspace(db)
+    count = body.slot_count
+    if count is None:
+        count = 13 if body.contest_style == "ICPC" else contest_defaults("OI").get("problem_count", 4)
+    cs = await create_contest_set(db, ws, body.name, body.contest_style, count)
+    await db.commit()
+    return ContestSetOut.model_validate(cs)
+
+
+@app.post("/api/problems", response_model=ProblemOut)
+async def create_problem(body: ProblemCreate, db: AsyncSession = Depends(get_db)):
+    ws = await ensure_default_workspace(db)
+    problem = Problem(
+        workspace_id=ws.id,
+        title=body.title,
+        originality=body.originality,
+        contest_style=body.contest_style,
+        problem_type=body.problem_type,
+        control_mode="HUMAN",
+        current_stage="SPEC",
+        spec_json={
+            "limits": {"time_ms": 1000, "memory_mb": 256},
+            "samples": [],
+            "solution_languages": ["cpp", "python", "java"],
+        },
+    )
+    db.add(problem)
+    await db.flush()
+    for stage_id in M3_STAGE_ORDER:
+        db.add(
+            ProblemStage(
+                problem_id=problem.id,
+                stage_id=stage_id,
+                status=StageStatus.AWAITING_HUMAN.value
+                if stage_id == "SPEC"
+                else StageStatus.PENDING.value,
+            )
+        )
+    await db.commit()
+    await db.refresh(problem)
+    return ProblemOut.model_validate(problem)
+
+
+@app.get("/api/problems/{problem_id}", response_model=ProblemOut)
+async def get_problem(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    return ProblemOut.model_validate(p)
+
+
+@app.get("/api/problems/{problem_id}/stages")
+async def list_stages(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    rows = (
+        await db.execute(select(ProblemStage).where(ProblemStage.problem_id == problem_id))
+    ).scalars().all()
+    return [
+        {
+            "stage_id": s.stage_id,
+            "status": s.status,
+            "approved_by": s.approved_by,
+            "note": s.note,
+        }
+        for s in rows
+    ]
+
+
+@app.post("/api/problems/{problem_id}/stages/{stage_id}/approve", response_model=ProblemOut)
+async def approve_stage(
+    problem_id: uuid.UUID,
+    stage_id: str,
+    body: StageAction,
+    db: AsyncSession = Depends(get_db),
+):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    try:
+        await PipelineFacade.approve_stage(db, p, stage_id, note=body.note)
+        await db.commit()
+        await db.refresh(p)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return ProblemOut.model_validate(p)
+
+
+@app.post("/api/problems/{problem_id}/stages/{stage_id}/reject", response_model=ProblemOut)
+async def reject_stage(
+    problem_id: uuid.UUID,
+    stage_id: str,
+    body: StageAction,
+    db: AsyncSession = Depends(get_db),
+):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    await PipelineFacade.reject_stage(db, p, stage_id, note=body.note or "")
+    await db.commit()
+    await db.refresh(p)
+    return ProblemOut.model_validate(p)
+
+
+@app.post("/api/problems/{problem_id}/dispatch")
+async def dispatch_stage(
+    problem_id: uuid.UUID,
+    body: DispatchRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    try:
+        out = await PipelineFacade.dispatch(db, p, body.stage_id, reason=body.reason)
+        await db.commit()
+        await db.refresh(p)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"problem": ProblemOut.model_validate(p), "dispatch": out}
+
+
+@app.post("/api/problems/{problem_id}/control-mode", response_model=ProblemOut)
+async def set_control_mode(
+    problem_id: uuid.UUID,
+    body: ControlModeSet,
+    db: AsyncSession = Depends(get_db),
+):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    try:
+        await SessionFacade.set_control_mode(db, p, body.mode)
+        await db.commit()
+        await db.refresh(p)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return ProblemOut.model_validate(p)
+
+
+@app.get("/api/problems/{problem_id}/artifacts")
+async def list_artifacts(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    rows = (
+        await db.execute(
+            select(Artifact)
+            .where(Artifact.problem_id == problem_id)
+            .order_by(Artifact.kind, Artifact.version.desc())
+        )
+    ).scalars().all()
+    latest: dict[str, Artifact] = {}
+    for a in rows:
+        if a.kind not in latest:
+            latest[a.kind] = a
+    return {
+        "items": [
+            {"kind": k, "version": v.version, "language": v.language, "id": str(v.id)}
+            for k, v in latest.items()
+        ]
+    }
+
+
+@app.get("/api/problems/{problem_id}/artifacts/{kind}", response_model=ArtifactOut)
+async def get_artifact(
+    problem_id: uuid.UUID,
+    kind: str,
+    version: int | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    art = await JobFacade.latest_artifact(db, problem_id, kind, version)
+    if not art:
+        raise HTTPException(404, "artifact not found")
+    return ArtifactOut.model_validate(art)
+
+
+@app.put("/api/problems/{problem_id}/artifacts/{kind}", response_model=ArtifactOut)
+async def put_artifact(
+    problem_id: uuid.UUID,
+    kind: str,
+    body: ArtifactSave,
+    db: AsyncSession = Depends(get_db),
+):
+    latest = await JobFacade.latest_artifact(db, problem_id, kind)
+    ver = (latest.version + 1) if latest else 1
+    content = body.content_text
+    art = Artifact(
+        problem_id=problem_id,
+        kind=kind,
+        version=ver,
+        content_text=content,
+        sha256=hashlib.sha256(content.encode()).hexdigest(),
+        author=body.author,
+        language=body.language,
+    )
+    db.add(art)
+    await db.commit()
+    await db.refresh(art)
+    return ArtifactOut.model_validate(art)
+
+
+@app.post("/api/problems/{problem_id}/compile", response_model=JobOut)
+async def compile_only(
+    problem_id: uuid.UUID,
+    body: CompileRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    draft = body.draft if body.use_editor_draft else None
+    job = await JobFacade.enqueue_compile(
+        db, p, program=body.program, draft=draft, language=body.language
+    )
+    await db.commit()
+    await db.refresh(job)
+    return JobOut.model_validate(job)
+
+
+@app.post("/api/problems/{problem_id}/run", response_model=JobOut)
+async def run_single(
+    problem_id: uuid.UUID,
+    body: RunRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    draft = body.draft if body.use_editor_draft else None
+    job = await JobFacade.enqueue_run_single(
+        db,
+        p,
+        program=body.program,
+        input_data=body.input,
+        artifact_version=body.artifact_version,
+        draft=draft,
+        language=body.language,
+        expected_out=body.expected_out,
+        use_checker=body.use_checker,
+    )
+    await db.commit()
+    await db.refresh(job)
+    return JobOut.model_validate(job)
+
+
+@app.post("/api/problems/{problem_id}/run/compare", response_model=JobOut)
+async def run_compare(
+    problem_id: uuid.UUID,
+    body: CompareRunRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    job = await JobFacade.enqueue_run_compare(db, p, input_data=body.input)
+    await db.commit()
+    await db.refresh(job)
+    return JobOut.model_validate(job)
+
+
+@app.post("/api/problems/{problem_id}/stress/run", response_model=JobOut)
+async def stress_run(
+    problem_id: uuid.UUID,
+    body: StressRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    job = await JobFacade.enqueue_stress(db, p, mode=body.mode)
+    await db.commit()
+    await db.refresh(job)
+    return JobOut.model_validate(job)
+
+
+@app.post("/api/problems/{problem_id}/run/interactive", response_model=JobOut)
+async def run_interactive(
+    problem_id: uuid.UUID,
+    body: InteractiveRunRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    if p.problem_type not in ("INTERACTIVE", "COMMUNICATION"):
+        raise HTTPException(400, "problem_type must be INTERACTIVE or COMMUNICATION")
+    draft = body.draft_std if body.use_editor_draft else None
+    job = await JobFacade.enqueue_interactive_run(db, p, draft_std=draft)
+    await db.commit()
+    await db.refresh(job)
+    return JobOut.model_validate(job)
+
+
+@app.get("/api/problems/{problem_id}/polygon/export")
+async def polygon_export_zip(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    rows = (await db.execute(select(Artifact).where(Artifact.problem_id == problem_id))).scalars().all()
+    data = build_polygon_zip(p, list(rows))
+    safe = p.title.replace(" ", "_")[:64]
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{safe}_polygon.zip"'},
+    )
+
+
+@app.post("/api/problems/{problem_id}/polygon/export", response_model=JobOut)
+async def polygon_export_job(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    job = await JobFacade.enqueue_polygon_export(db, p)
+    await db.commit()
+    await db.refresh(job)
+    return JobOut.model_validate(job)
+
+
+@app.get("/api/jobs/{job_id}", response_model=JobOut)
+async def get_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    job = await JobFacade.get_job(db, job_id)
+    if not job:
+        raise HTTPException(404, "job not found")
+    return JobOut.model_validate(job)
+
+
+@app.get("/api/monitor/events", response_model=list[EventOut])
+async def list_events(
+    problem_id: uuid.UUID | None = None,
+    run_id: uuid.UUID | None = None,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+):
+    q = select(Event).order_by(Event.created_at.desc()).limit(min(limit, 500))
+    if problem_id:
+        q = q.where(Event.problem_id == problem_id)
+    if run_id:
+        q = q.where(Event.run_id == run_id)
+    rows = (await db.execute(q)).scalars().all()
+    return [EventOut.model_validate(e) for e in rows]
+
+
+@app.post("/api/sessions", response_model=SessionOut)
+async def create_session(body: SessionCreate, db: AsyncSession = Depends(get_db)):
+    ws = await ensure_default_workspace(db)
+    chat = await SessionFacade.create_session(
+        db, ws, problem_id=body.problem_id, title=body.title
+    )
+    await db.commit()
+    await db.refresh(chat)
+    return SessionOut.model_validate(chat)
+
+
+@app.get("/api/sessions/{session_id}/messages", response_model=list[MessageOut])
+async def get_session_messages(session_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    chat = await SessionFacade.get_session(db, session_id)
+    if not chat:
+        raise HTTPException(404, "session not found")
+    msgs = await SessionFacade.list_messages(db, session_id)
+    return [MessageOut.model_validate(m) for m in msgs]
+
+
+@app.post("/api/sessions/{session_id}/chat", response_model=ChatResponse)
+async def session_chat(
+    session_id: uuid.UUID,
+    body: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    chat = await SessionFacade.get_session(db, session_id)
+    if not chat:
+        raise HTTPException(404, "session not found")
+    problem = None
+    pid = body.problem_id or chat.problem_id
+    if pid:
+        problem = await db.get(Problem, pid)
+    user_msg, asst, tools = await SessionFacade.chat(db, chat, body.message, problem=problem)
+    await db.commit()
+    return ChatResponse(
+        user=MessageOut.model_validate(user_msg),
+        assistant=MessageOut.model_validate(asst),
+        tools_used=tools,
+    )
+
+
+@app.get("/api/workspace/secrets", response_model=SecretsOut)
+async def get_secrets(db: AsyncSession = Depends(get_db)):
+    ws = await ensure_default_workspace(db)
+    row = (
+        await db.execute(
+            select(WorkspaceSecret).where(
+                WorkspaceSecret.workspace_id == ws.id,
+                WorkspaceSecret.key_name == "openai_api_key",
+            )
+        )
+    ).scalar_one_or_none()
+    if not row or not row.value_encrypted:
+        env_key = settings.openai_api_key
+        if env_key:
+            return SecretsOut(openai_configured=True, openai_masked=_mask(env_key))
+        return SecretsOut(openai_configured=False)
+    return SecretsOut(openai_configured=True, openai_masked=_mask(row.value_encrypted))
+
+
+@app.put("/api/workspace/secrets", response_model=SecretsOut)
+async def set_secrets(body: SecretSet, db: AsyncSession = Depends(get_db)):
+    ws = await ensure_default_workspace(db)
+    if body.openai_api_key is not None:
+        row = (
+            await db.execute(
+                select(WorkspaceSecret).where(
+                    WorkspaceSecret.workspace_id == ws.id,
+                    WorkspaceSecret.key_name == "openai_api_key",
+                )
+            )
+        ).scalar_one_or_none()
+        if row:
+            row.value_encrypted = body.openai_api_key
+        else:
+            db.add(
+                WorkspaceSecret(
+                    workspace_id=ws.id,
+                    key_name="openai_api_key",
+                    value_encrypted=body.openai_api_key,
+                )
+            )
+        settings.openai_api_key = body.openai_api_key
+    await db.commit()
+    key = body.openai_api_key or settings.openai_api_key
+    return SecretsOut(
+        openai_configured=bool(key),
+        openai_masked=_mask(key) if key else None,
+    )
+
+
+def _mask(key: str) -> str:
+    if len(key) < 8:
+        return "****"
+    return key[:3] + "..." + key[-4:]
+
+
+def run() -> None:
+    import uvicorn
+
+    uvicorn.run("duliu.api.main:app", host="0.0.0.0", port=8000, reload=False)
+
+
+if __name__ == "__main__":
+    run()

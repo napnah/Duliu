@@ -8,7 +8,7 @@
 |----|------|------|
 | D-01 | **题目存 Postgres，单题隔离** | 不以目录树作为题面/数据主存储；三级逻辑树：根 → 套题 → 单题。见 [data-model.md](./data-model.md) |
 | D-02 | **状态库 Postgres** | LangGraph checkpoint、阶段、会话、事件、配置均入 PG |
-| D-03 | **Linux + Docker 运行** | 开发与**验题/评测**均在 Linux 容器内；Windows 仅作开发机时不要求原生跑 Runner |
+| D-03 | **Linux + Docker 运行** | 验题/评测在 Linux 容器内；**Windows 主机通过 WSL2 + Docker Desktop** 启动 compose，见 [wsl-windows.md](./wsl-windows.md) |
 | D-04 | **判题严格性** | 传统题：**字节级**比较 `.out` 与选手输出（或 testlib 等价）；多解/提交答案/浮点：**必须**走 SPJ/checker |
 | D-05 | **HITL 主界面 Web** | 浏览器：审批、Session 对话、观测、编辑工件；**CLI 预留**作自动化/脚本。见 [hitl-web.md](./hitl-web.md) |
 | D-06 | **LLM 按 Agent 单独配置** | 各 Agent 可配不同 model/provider；密钥见下文 §LLM |
