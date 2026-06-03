@@ -44,9 +44,9 @@
 
 实现按 [PLAN.md §16](./PLAN.md#16-实施路线图) 里程碑推进。
 
-## M7–M13 ✅ 已完成
+## M7–M14 ✅ 已完成
 
-- [M7](docs/M7-COMPLETE.md) · [M8](docs/M8-COMPLETE.md) · [M9](docs/M9-COMPLETE.md) · [M10](docs/M10-COMPLETE.md) · [M11](docs/M11-COMPLETE.md) · [M12](docs/M12-COMPLETE.md) · [M13 Polygon/isolate](docs/M13-COMPLETE.md)
+- [M7](docs/M7-COMPLETE.md) … [M13](docs/M13-COMPLETE.md) · [M14 Stage LLM/Job WS](docs/M14-COMPLETE.md)
 
 ## M6 ✅ 已完成
 

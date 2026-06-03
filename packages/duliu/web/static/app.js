@@ -607,7 +607,48 @@ async function loadArtifactContent(kind) {
   }
 }
 
+async function pollJobWs(jobId) {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`${proto}//${location.host}/api/jobs/${jobId}/ws`);
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(new Error("job ws timeout"));
+    }, 120000);
+    ws.onmessage = (ev) => {
+      try {
+        const d = JSON.parse(ev.data);
+        if (d.type === "done" || d.status === "done" || d.status === "failed") {
+          clearTimeout(timer);
+          ws.close();
+          resolve({
+            id: jobId,
+            status: d.status,
+            kind: d.kind,
+            result_json: d.result_json,
+            log_text: d.log_text,
+          });
+        }
+      } catch (e) {
+        clearTimeout(timer);
+        reject(e);
+      }
+    };
+    ws.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error("job ws error"));
+    };
+  });
+}
+
 async function pollJob(jobId) {
+  if (typeof WebSocket !== "undefined") {
+    try {
+      return await pollJobWs(jobId);
+    } catch (_) {
+      /* fallback REST */
+    }
+  }
   for (let i = 0; i < 120; i++) {
     const job = await api(`/api/jobs/${jobId}`);
     if (job.status === "done" || job.status === "failed") return job;

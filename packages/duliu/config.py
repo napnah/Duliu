@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     use_isolate: bool = Field(default=False, validation_alias="DULIU_USE_ISOLATE")
     worker_job_kinds: str = Field(default="", validation_alias="DULIU_WORKER_JOB_KINDS")
     sse_poll_seconds: float = Field(default=2.0, validation_alias="DULIU_SSE_POLL_SECONDS")
+    stage_llm_enabled: bool = Field(default=True, validation_alias="DULIU_STAGE_LLM_ENABLED")
+    job_ws_poll_seconds: float = Field(default=0.5, validation_alias="DULIU_JOB_WS_POLL_SECONDS")
 
     def worker_job_kinds_list(self) -> list[str] | None:
         raw = (self.worker_job_kinds or "").strip()

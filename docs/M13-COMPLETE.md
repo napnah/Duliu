@@ -20,6 +20,6 @@ Polygon **无官方稳定上传 API**；`cookie_ready` 仅表示已存 Cookie，
 bash scripts/m13-smoke-test.sh
 ```
 
-## 仍待（M14+）
+## 后续
 
-- 各阶段 LLM Agent、Runner Job 细粒度 WebSocket 进度
+- 阶段 LLM Agent、Job WS：见 [M14-COMPLETE.md](./M14-COMPLETE.md)

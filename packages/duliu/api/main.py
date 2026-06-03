@@ -92,6 +92,7 @@ from duliu.facade.import_flow import (
     enqueue_import_check,
     fetch_ac_std_and_save,
 )
+from duliu.facade.job_stream import ws_job_loop
 from duliu.facade.monitor_stream import sse_event_generator, ws_event_loop
 from duliu.pipeline.orchestrator import PipelineOrchestrator
 from duliu.facade.jobs import JobFacade
@@ -163,10 +164,11 @@ async def health():
 
     return {
         "status": "ok",
-        "milestone": "M13",
+        "milestone": "M14",
         "langgraph": settings.use_langgraph,
         "langgraph_checkpoint": checkpointer_mode(),
         "monitor_transport": "websocket+sse",
+        "stage_llm_enabled": settings.stage_llm_enabled,
         "sse_poll_seconds": settings.sse_poll_seconds,
         "sandbox": sandbox_mode(),
         "isolate_available": isolate_available(),
@@ -368,6 +370,17 @@ async def websocket_events(
         return
     except Exception:
         await websocket.close()
+
+
+@app.get("/api/agents/stages")
+async def list_stage_agents():
+    from duliu.agents.stage_agents import STAGE_LLM_STAGES
+
+    return {
+        "enabled": settings.stage_llm_enabled,
+        "stages": sorted(STAGE_LLM_STAGES),
+        "openai_configured": bool(settings.openai_api_key),
+    }
 
 
 @app.get("/api/langgraph/dispatch-graph")
@@ -884,6 +897,27 @@ async def get_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     if not job:
         raise HTTPException(404, "job not found")
     return JobOut.model_validate(job)
+
+
+@app.websocket("/api/jobs/{job_id}/ws")
+async def websocket_job(websocket: WebSocket, job_id: uuid.UUID):
+    """M14: stream job status until done/failed."""
+    await websocket.accept()
+
+    async def send_json(data: dict) -> None:
+        await websocket.send_json(data)
+
+    try:
+        await ws_job_loop(
+            send_json,
+            async_session,
+            job_id,
+            poll_seconds=settings.job_ws_poll_seconds,
+        )
+    except WebSocketDisconnect:
+        return
+    except Exception:
+        await websocket.close()
 
 
 @app.post("/api/sessions", response_model=SessionOut)

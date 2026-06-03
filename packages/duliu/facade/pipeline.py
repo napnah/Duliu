@@ -131,11 +131,14 @@ class PipelineFacade:
         from duliu.config import settings
 
         if settings.use_langgraph:
-            from duliu.pipeline.langgraph_runner import invoke_dispatch
+            try:
+                from duliu.pipeline.langgraph_runner import invoke_dispatch
 
-            return await invoke_dispatch(
-                session, problem, stage_id, reason=reason, run_id=run_id
-            )
+                return await invoke_dispatch(
+                    session, problem, stage_id, reason=reason, run_id=run_id
+                )
+            except (ImportError, ModuleNotFoundError):
+                pass
         return await PipelineFacade.dispatch_core(
             session, problem, stage_id, reason=reason, run_id=run_id
         )
@@ -245,22 +248,40 @@ class PipelineFacade:
                 payload=report,
             )
         else:
-            stage.status = StageStatus.AWAITING_HUMAN.value
-            result = {
-                "stage": stage_id,
-                "status": "awaiting_human",
-                "hint": "请用 Web 编辑器保存工件后人工 Gate",
-            }
-            await emit_event(
-                session,
-                problem_id=problem.id,
-                run_id=rid,
-                type="pipeline.dispatch.done",
-                message=f"Stage {stage_id} ready for human review",
-                source="pipeline",
-                stage_id=stage_id,
-                payload=result,
-            )
+            from duliu.agents.stage_agents import STAGE_LLM_STAGES, run_stage_agent
+
+            if stage_id in STAGE_LLM_STAGES:
+                report = await run_stage_agent(session, problem, stage_id)
+                stage.status = StageStatus.AWAITING_HUMAN.value
+                result = {"stage": stage_id, "report": report, "agent": report.get("mode")}
+                await emit_event(
+                    session,
+                    problem_id=problem.id,
+                    run_id=rid,
+                    type="pipeline.dispatch.done",
+                    message=report.get("summary", f"Stage {stage_id} agent done"),
+                    source="pipeline",
+                    stage_id=stage_id,
+                    level="INFO" if report.get("ok") else "WARN",
+                    payload=report,
+                )
+            else:
+                stage.status = StageStatus.AWAITING_HUMAN.value
+                result = {
+                    "stage": stage_id,
+                    "status": "awaiting_human",
+                    "hint": "请用 Web 编辑器保存工件后人工 Gate",
+                }
+                await emit_event(
+                    session,
+                    problem_id=problem.id,
+                    run_id=rid,
+                    type="pipeline.dispatch.done",
+                    message=f"Stage {stage_id} ready for human review",
+                    source="pipeline",
+                    stage_id=stage_id,
+                    payload=result,
+                )
 
         await session.flush()
         return {"run_id": str(rid), **result}

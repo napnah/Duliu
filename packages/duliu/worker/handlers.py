@@ -397,6 +397,15 @@ async def process_job(session: AsyncSession, job_id: uuid.UUID) -> None:
 
     job.status = JobStatus.RUNNING.value
     await session.flush()
+    await emit_event(
+        session,
+        problem_id=problem.id,
+        type="runner.job.running",
+        message=f"Job {job.kind} running",
+        source="runner",
+        job_id=job.id,
+        payload={"kind": job.kind, "status": job.status},
+    )
 
     try:
         if job.kind == JobKind.RUN_SINGLE.value:
@@ -429,6 +438,17 @@ async def process_job(session: AsyncSession, job_id: uuid.UUID) -> None:
             job_id=job.id,
             level="ERROR",
         )
+    else:
+        if job.status == JobStatus.DONE.value:
+            await emit_event(
+                session,
+                problem_id=problem.id,
+                type="runner.job.done",
+                message=f"Job {job.kind} done",
+                source="runner",
+                job_id=job.id,
+                payload={"kind": job.kind, "status": job.status, "result_json": job.result_json},
+            )
 
 
 async def poll_and_run(session: AsyncSession) -> int:
