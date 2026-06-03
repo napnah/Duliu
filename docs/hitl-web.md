@@ -26,7 +26,10 @@ duliu-api → SessionFacade / PipelineFacade / MonitorFacade / JobFacade
 | **监控中心** | 实时事件；按 stage/agent/job 过滤；展开 payload；拉取完整 Runner 日志 |
 | **Session 聊天** | 长期助手；NL special_design；dispatch；与监控联动查 WA |
 | **阶段条** | S0~S9；Approve / Reject |
-| **工件编辑** | 题面、标程、gen、checker（保存 → DB 新版本） |
+| **工件编辑** | **Monaco** 高亮；任意 artifact；保存 → DB 新版本；见 [web-editor-and-sandbox.md](./web-editor-and-sandbox.md) |
+| **标程工具栏** | **保存**、**编译**、**按输入运行**（stdin→沙箱→stdout 回显）、**一键对拍** |
+| **运行面板** | Input/Output 分栏；verdict/用时/内存；见 [web-editor-and-sandbox.md](./web-editor-and-sandbox.md) §4 |
+| **原题卡片** | 非原创题：原题链接 + **已在原题提交** 确认（强制）；见 [non-original-workflow.md](./non-original-workflow.md) |
 | **任务卡片** | 当前 stress/compile Job 状态、取消、进度 |
 | **设置** | LLM API Key（按 Agent 可覆盖）+ 爬虫 Token/Cookie；测试连接；见 [integrations.md](./integrations.md) |
 

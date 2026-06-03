@@ -112,6 +112,7 @@ class SessionFacade:
 | Job 类型 | 执行体 | 稳定性措施 |
 |----------|--------|------------|
 | `compile` | Runner 容器 | 超时、OOM 记录、失败归档 |
+| `run_single` | Runner 容器 | 用户给定 stdin，单程序运行；结果 JSON 返 Web（见 [web-editor-and-sandbox.md](./web-editor-and-sandbox.md) §4） |
 | `stress` | Runner 容器 | 进度事件每 N 轮写入 `events`；可 cancel；断线可恢复查询 |
 | `crawl` | Crawler 容器 | 独立镜像、限速 |
 

@@ -18,6 +18,8 @@
 | [docs/architecture-runtime.md](./docs/architecture-runtime.md) | **运行架构**：监控、Session、Facade、Worker |
 | [docs/decisions.md](./docs/decisions.md) | 已确认决策、LLM 说明 |
 | [docs/integrations.md](./docs/integrations.md) | LLM 调用方式、LangGraph、爬虫与 Web 配 Key |
+| [docs/web-editor-and-sandbox.md](./docs/web-editor-and-sandbox.md) | Monaco 编辑、一键对拍与沙箱分工 |
+| [docs/non-original-workflow.md](./docs/non-original-workflow.md) | 非原创：网络标程、对拍、原题提交 |
 
 ## 需求摘要（v0.4 已锁定）
 

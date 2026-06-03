@@ -139,7 +139,7 @@ target_difficulty: { min_rating, max_rating, distribution: [...] }
 | S8 | `EDITORIAL` | 题解 | `editorial.md` | Editorialist |
 | S9 | `DONE` | 完成 | — | — |
 
-**非原创**路径：跳过 S0 或替换为 `IMPORT` → 从 S2 或 S3 开始（视爬取完整度），其余阶段相同。
+**非原创**路径：`IMPORT`（网络题面 + 可选网络标程 + `import_check` 对拍）→ 须 **原题提交确认** → 简化 gen/stress，仍严格判定。详见 [docs/non-original-workflow.md](./docs/non-original-workflow.md)。
 
 ### 6.2 阶段 Gate 规则
 
@@ -215,6 +215,18 @@ target_difficulty: { min_rating, max_rating, distribution: [...] }
 ### 7.5b 爬虫凭证（D-12）
 
 登录类站点由用户在 Web 填写 **Token/Cookie**（加密存储）；爬虫在 Worker 容器执行，失败进 Monitor。详见 [docs/integrations.md](./docs/integrations.md) §3。
+
+### 7.7 Web 编辑、单点运行与一键对拍（D-13 / D-14 / D-16）
+
+- **工件编辑**：浏览器 **Monaco Editor** 修改任意 `artifacts`（题面/标程/gen/…），语法高亮；内容存 Postgres，**不是沙箱能力**。
+- **沙箱**：仅 **Runner** 编译/运行；**不在浏览器执行代码**。
+- **按输入一键运行（D-16）**：Web 输入 stdin → `POST /api/problems/{id}/run` → Job `run_single` → Isolate 运行 std/brute → **stdout/stderr/verdict/用时** 返回页面（可选「当前草稿运行」）。
+- **一键对拍（D-14）**：保存后 **stress/run**（quick/full）；结果进监控中心；正式 **S5 Gate** 仍须 full + 人工 approve。详见 [docs/web-editor-and-sandbox.md](./docs/web-editor-and-sandbox.md)。
+
+### 7.8 非原创题（D-15）
+
+- 可使用 **网络标程**（爬取或粘贴）作起点，**必须** 配备 **brute** + **严格对拍**（默认简化 gen、较少轮次用于 IMPORT 校验）。
+- **强制原题提交**：UI 展示 `problem_url`；用户勾选「已在原题平台提交/核对」后方可过 IMPORT 与后续阶段。详见 [docs/non-original-workflow.md](./docs/non-original-workflow.md)。
 
 ### 7.6 后台服务（D-08 已锁定）
 
@@ -465,7 +477,7 @@ Duliu/
 
 | 里程碑 | 范围 | 验收标准 |
 |--------|------|----------|
-| **M1** | 单题 · PG 三级树 · Web Gate · Linux Runner · 严格对拍 | Web 审批；DB 工件；字节比较或 checker |
+| **M1** | 单题 · PG · Web Gate · Runner · **stdin 一键运行** · 严格对拍 | Web 运行面板回显；DB 工件；字节比较或 checker |
 | **M2** | + OI + SPJ + 三语言 + S6 + Web Session Agent | 按 Agent LLM 配置；dispatch |
 | **M3** | + 交互/通信 + Polygon 导出 + S7~S8 | [polygon.md](./docs/polygon.md) |
 | **M4** | 套题 13/4 + Set Evaluator | Web 套题树 + 难度曲线 |
@@ -507,6 +519,8 @@ Duliu/
 | ✅ | LLM | Tool Calling + Web 配 Key；见 [integrations.md](./docs/integrations.md) |
 | ✅ | LangGraph | Docker 内 Python 库，用户 compose 即可 → [integrations.md](./docs/integrations.md) §2 |
 | ✅ | 爬虫凭证 | Web 配 Token/Cookie，Worker 稳定队列+重试 → [integrations.md](./docs/integrations.md) §3 |
+| ✅ | Web 编辑 + 运行 + 对拍 | Monaco；`run` 单点 + `stress` 对拍均走 Runner → [web-editor-and-sandbox.md](./docs/web-editor-and-sandbox.md) |
+| ✅ | 非原创 | 网络标程 + 严格对拍 + 强制原题提交 → [non-original-workflow.md](./docs/non-original-workflow.md) |
 | ✅ | **D-08/D-09 运行架构** | 前端监控+Session；后端 Facade+Pipeline+Worker → [architecture-runtime.md](./docs/architecture-runtime.md) |
 | ⏳ | 爬虫源站白名单 | M5 |
 | ⏳ | Polygon 自动上传网页 | 默认仅本地 package → [polygon.md](./docs/polygon.md) |

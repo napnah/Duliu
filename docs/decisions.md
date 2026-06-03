@@ -18,6 +18,10 @@
 | D-10 | **LLM 工具路径** | 后端 Tool Calling → Facade → DB/Worker；**非 MCP、非 CLI**；见 [integrations.md](./integrations.md) §1 |
 | D-11 | **LangGraph 交付** | Python 库，随 Docker 镜像；用户 `compose up` 即可；图代码在 `pipeline/`/`session/` |
 | D-12 | **前端密钥配置** | Web「设置」统一配置 LLM API Key + 爬虫 Token/Cookie（加密）；登录站由用户提供凭证 |
+| D-13 | **Web 工件编辑** | Monaco 高亮；任意 artifact 可编辑；保存入 DB；见 [web-editor-and-sandbox.md](./web-editor-and-sandbox.md) |
+| D-14 | **一键对拍** | `std` 等保存后 `POST .../stress/run` → Worker 沙箱；quick/full；见同上 |
+| D-15 | **非原创** | 网络标程作草稿 + 必填 brute + 简化 stress + **强制原题提交确认**；见 [non-original-workflow.md](./non-original-workflow.md) |
+| D-16 | **按输入一键运行** | Web 填 stdin → `POST .../run` → Worker/Isolate → stdout 等返回浏览器；见 [web-editor-and-sandbox.md](./web-editor-and-sandbox.md) §4 |
 
 ## ~~待你确认（Daemon）~~
 
@@ -76,3 +80,5 @@ adversarial:
 | v0.2 | D-01~07；HITL 从 CLI 主路径改为 Web 主路径 |
 | v0.3 | D-08/D-09 运行架构：前端监控+Session，后端封装 Pipeline+Worker |
 | v0.4 | D-10~12：LLM Tool Calling、LangGraph Docker、Web 密钥/爬虫配置 |
+| v0.5 | D-13~15：Monaco 编辑、一键对拍、非原创原题提交 |
+| v0.6 | D-16：浏览器输入一键沙箱运行并返回结果 |
