@@ -12,6 +12,7 @@ venv/
 *.swp
 
 # Duliu runtime (future)
+.sessions/
 artifacts/
 *.log
 node_modules/

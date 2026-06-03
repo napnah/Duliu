@@ -1,0 +1,68 @@
+# Duliu Agent 角色注册表
+version: "0.1"
+
+agents:
+  - id: session
+    name: Session Agent
+    layer: cli
+    human_facing: true
+    long_lived: true
+    may_write_artifacts: false
+    description: 长期会话助手；唯一主对话入口；调度阶段 Agent、Gate 摘要、special_design
+    entry: "duliu chat"
+    doc: docs/hitl-cli.md
+
+  - id: ideation
+    name: Ideation Agent
+    layer: pipeline
+    human_facing: false
+    stages: [IDEA]
+
+  - id: search
+    name: Search Agent
+    layer: pipeline
+    human_facing: false
+    stages: [IDEA]
+
+  - id: design
+    name: Design Agent
+    layer: pipeline
+    human_facing: false
+    stages: [SPEC, STATEMENT]
+
+  - id: solver
+    name: Solver Agent
+    layer: pipeline
+    human_facing: false
+    stages: [SOLUTION, GENERATOR]
+
+  - id: adversarial
+    name: Adversarial Agent
+    layer: pipeline
+    human_facing: false
+    may_write_artifacts: false
+    stages: [ADVERSARIAL_REVIEW]
+
+  - id: polygon_adapter
+    name: Polygon Adapter Agent
+    layer: pipeline
+    human_facing: false
+    stages: [PACKAGE]
+
+  - id: editorialist
+    name: Editorialist Agent
+    layer: pipeline
+    human_facing: false
+    stages: [EDITORIAL]
+
+  - id: set_evaluator
+    name: Set Evaluator Agent
+    layer: pipeline
+    human_facing: false
+    stages: [SET_EVAL]
+
+  - id: crawler
+    name: Crawler Worker
+    layer: pipeline
+    human_facing: false
+    stages: [IMPORT]

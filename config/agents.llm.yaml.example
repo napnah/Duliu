@@ -1,0 +1,33 @@
+# 复制为 agents.llm.yaml（可入仓，勿含 API Key）
+# 密钥：环境变量或 .duliu/secrets.yaml — 见 docs/decisions.md
+
+session:
+  provider: anthropic
+  model: claude-sonnet-4-20250514
+  temperature: 0.3
+
+ideation:
+  provider: anthropic
+  model: claude-sonnet-4-20250514
+
+design:
+  provider: anthropic
+  model: claude-sonnet-4-20250514
+
+solver:
+  provider: openai
+  model: gpt-4.1
+  temperature: 0.2
+
+adversarial:
+  provider: anthropic
+  model: claude-sonnet-4-20250514
+  temperature: 0.4
+
+editorialist:
+  provider: anthropic
+  model: claude-sonnet-4-20250514
+
+set_evaluator:
+  provider: anthropic
+  model: claude-sonnet-4-20250514
