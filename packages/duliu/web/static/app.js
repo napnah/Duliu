@@ -12,6 +12,7 @@ let monitorSocket = null;
 let stagePollTimer = null;
 let monacoReady = false;
 let treeCache = null;
+let routeSeq = 0;
 
 const VIEWS = [
   "view-home",
@@ -66,7 +67,23 @@ function parseRoute() {
 
 function navigate(path) {
   const p = path.startsWith("#") ? path.slice(1) : path;
-  location.hash = p.startsWith("/") ? p : `/${p}`;
+  const next = p.startsWith("/") ? p : `/${p}`;
+  const cur = (location.hash || "").replace(/^#/, "");
+  if (cur === next) {
+    onRoute();
+    return;
+  }
+  location.hash = next;
+}
+
+function problemViewId(tab) {
+  const map = {
+    pipeline: "view-pipeline",
+    editor: "view-editor",
+    agent: "view-agent",
+    monitor: "view-monitor",
+  };
+  return map[tab] || "view-pipeline";
 }
 
 function showView(viewId) {
@@ -123,6 +140,7 @@ function updateProblemSubnav(route) {
 }
 
 async function onRoute() {
+  const seq = ++routeSeq;
   const route = parseRoute();
   updateBreadcrumb(route);
   updateProblemSubnav(route);
@@ -130,45 +148,62 @@ async function onRoute() {
 
   if (route.page === "settings") {
     showView("view-settings");
+    currentProblemId = null;
+    currentContestSetId = null;
     await loadSettings();
     return;
   }
 
   if (route.page === "home") {
     showView("view-home");
+    currentProblemId = null;
+    currentContestSetId = null;
     await loadTree();
+    if (seq !== routeSeq) return;
     renderHomeRecent();
     return;
   }
 
   if (route.page === "contest") {
     showView("view-contest");
+    currentContestSetId = route.contestId;
+    currentProblemId = null;
+    sessionId = null;
     await loadTree();
+    if (seq !== routeSeq) return;
     await openContest(route.contestId);
     return;
   }
 
   if (route.page === "problem") {
-    await loadTree();
-    await openProblem(route.problemId);
     const tab = route.tab || "pipeline";
+    showView(problemViewId(tab));
+    currentProblemId = route.problemId;
+    currentContestSetId = null;
+    await loadTree();
+    if (seq !== routeSeq) return;
+    await openProblem(route.problemId);
+    if (seq !== routeSeq) return;
+
     if (tab === "pipeline") {
-      showView("view-pipeline");
       await refreshPipeline();
+      if (seq !== routeSeq) return;
       stagePollTimer = setInterval(refreshPipeline, 5000);
     } else if (tab === "editor") {
-      showView("view-editor");
       await ensureMonaco();
+      if (seq !== routeSeq) return;
       await loadArtifactKinds();
+      if (seq !== routeSeq) return;
       layoutMonaco();
     } else if (tab === "agent") {
-      showView("view-agent");
       await refreshAgentContext();
+      if (seq !== routeSeq) return;
       await refreshStageTimeline("agent-stage-timeline");
+      if (seq !== routeSeq) return;
       stagePollTimer = setInterval(() => refreshStageTimeline("agent-stage-timeline"), 5000);
     } else if (tab === "monitor") {
-      showView("view-monitor");
       await loadEvents();
+      if (seq !== routeSeq) return;
       startEventStream();
     }
   }
@@ -331,7 +366,10 @@ async function loadTree() {
     li.textContent = `${c.name} · ${c.contest_style}`;
     li.dataset.id = c.id;
     li.classList.toggle("active", c.id === currentContestSetId);
-    li.onclick = () => navigate(`/contest/${c.id}`);
+    li.onclick = (e) => {
+      e.preventDefault();
+      navigate(`/contest/${c.id}`);
+    };
     csUl.appendChild(li);
   }
   const ul = document.getElementById("tree-problems");
@@ -341,9 +379,13 @@ async function loadTree() {
     li.textContent = p.title;
     li.dataset.id = p.id;
     li.classList.toggle("active", p.id === currentProblemId);
-    li.onclick = () => navigate(`/problem/${p.id}/pipeline`);
+    li.onclick = (e) => {
+      e.preventDefault();
+      navigate(`/problem/${p.id}/pipeline`);
+    };
     ul.appendChild(li);
   }
+  markTreeActive();
 }
 
 function renderHomeRecent() {
@@ -367,10 +409,20 @@ function renderHomeRecent() {
 }
 
 /* ── Contest ── */
+function markTreeActive() {
+  document.querySelectorAll("#tree-contests li").forEach((li) => {
+    li.classList.toggle("active", li.dataset.id === currentContestSetId);
+  });
+  document.querySelectorAll("#tree-problems li").forEach((li) => {
+    li.classList.toggle("active", li.dataset.id === currentProblemId);
+  });
+}
+
 async function openContest(id) {
   currentContestSetId = id;
   currentProblemId = null;
   sessionId = null;
+  markTreeActive();
   const d = await api(`/api/contest-sets/${id}`);
   document.getElementById("contest-title").textContent = d.name;
   document.getElementById("contest-status").textContent = d.status;
@@ -480,11 +532,14 @@ function renderSlotTable(detail) {
 
 /* ── Problem ── */
 async function openProblem(id) {
+  if (currentProblemId !== id) {
+    sessionId = null;
+  }
   currentProblemId = id;
-  sessionId = null;
   currentProblem = await api(`/api/problems/${id}`);
   currentSpec = currentProblem.spec_json || { samples: [] };
   currentContestSetId = currentProblem.contest_set_id || null;
+  markTreeActive();
 }
 
 async function refreshPipeline() {
