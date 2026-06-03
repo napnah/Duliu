@@ -43,10 +43,15 @@ M1_STAGE_ORDER = ["SPEC", "STATEMENT", "SOLUTION", "GENERATOR", "STRESS"]
 M2_STAGE_ORDER = M1_STAGE_ORDER + ["ADVERSARIAL_REVIEW"]
 # M3 adds S7 PACKAGE + S8 EDITORIAL
 M3_STAGE_ORDER = M2_STAGE_ORDER + ["PACKAGE", "EDITORIAL"]
+# M6: NON_ORIGINAL 题在 SPEC 前增加 IMPORT（爬题 + import_check）
+M6_NON_ORIGINAL_ORDER = ["IMPORT"] + M3_STAGE_ORDER
 
 
-def stage_order_for(contest_style: str) -> list[str]:
-    """M3 full stage chain; OI/ICPC differ in workflow YAML checks only."""
+def stage_order_for(contest_style: str, originality: str = "ORIGINAL") -> list[str]:
+    """Stage chain; NON_ORIGINAL prepends IMPORT."""
+    _ = contest_style
+    if originality == "NON_ORIGINAL":
+        return list(M6_NON_ORIGINAL_ORDER)
     return list(M3_STAGE_ORDER)
 
 

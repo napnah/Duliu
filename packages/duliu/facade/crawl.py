@@ -7,7 +7,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from duliu.crawler.whitelist import validate_url
-from duliu.db.models import M3_STAGE_ORDER, Problem, ProblemStage, StageStatus, Workspace
+from duliu.db.models import Problem, ProblemStage, StageStatus, Workspace, stage_order_for
 from duliu.facade.events import emit_event
 from duliu.facade.jobs import JobFacade
 
@@ -30,7 +30,7 @@ class CrawlFacade:
             problem_type="TRADITIONAL",
             contest_style="ICPC",
             control_mode="HUMAN",
-            current_stage="SPEC",
+            current_stage="IMPORT",
             spec_json={
                 "import": {
                     "status": "queued",
@@ -45,16 +45,18 @@ class CrawlFacade:
         )
         session.add(problem)
         await session.flush()
-        for sid in M3_STAGE_ORDER:
+        order = stage_order_for("ICPC", "NON_ORIGINAL")
+        for sid in order:
             session.add(
                 ProblemStage(
                     problem_id=problem.id,
                     stage_id=sid,
                     status=StageStatus.AWAITING_HUMAN.value
-                    if sid == "SPEC"
+                    if sid == "IMPORT"
                     else StageStatus.PENDING.value,
                 )
             )
+        problem.spec_json = {**problem.spec_json, "_stage_order": order}
         await emit_event(
             session,
             problem_id=problem.id,

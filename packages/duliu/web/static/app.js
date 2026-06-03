@@ -22,6 +22,7 @@ const VIEWS = [
 ];
 
 const STAGE_LABELS = {
+  IMPORT: "爬取导入",
   SPEC: "题意规格",
   STATEMENT: "题面",
   SOLUTION: "标程",
@@ -345,11 +346,47 @@ async function refreshPipeline() {
   if (!currentProblemId) return;
   const p = await api(`/api/problems/${currentProblemId}`);
   currentProblem = p;
+  const graph = await api(`/api/problems/${currentProblemId}/pipeline-graph`);
   document.getElementById("pipeline-title").textContent = p.title;
   document.getElementById("pipeline-stage").textContent = p.current_stage;
-  document.getElementById("pipeline-style").textContent = `${p.contest_style} / ${p.problem_type}`;
+  document.getElementById("pipeline-style").textContent =
+    `${p.contest_style} / ${p.problem_type} / ${p.originality}`;
   document.getElementById("pipeline-control").textContent = p.control_mode;
-  await refreshStageTimeline("stage-timeline");
+  const impPanel = document.getElementById("import-panel");
+  if (p.originality === "NON_ORIGINAL") {
+    impPanel.classList.remove("hidden");
+    const imp = graph.import || {};
+    document.getElementById("import-url").textContent = imp.problem_url || "（无 URL）";
+    document.getElementById("import-status-line").textContent =
+      `导入: ${imp.status || "-"} · import_check: ${imp.import_check_ok ? "通过" : "未通过"} · 提交确认: ${imp.submission_confirmed ? "是" : "否"}`;
+    const link = document.getElementById("import-open-url");
+    if (imp.problem_url) link.href = imp.problem_url;
+    document.getElementById("import-confirm-box").checked = !!imp.submission_confirmed;
+  } else {
+    impPanel.classList.add("hidden");
+  }
+  renderGraphTimeline("stage-timeline", graph);
+}
+
+function renderGraphTimeline(containerId, graph) {
+  const ul = document.getElementById(containerId);
+  if (!ul) return;
+  ul.innerHTML = "";
+  const cur = graph.current_stage;
+  const curIdx = graph.nodes.findIndex((n) => n.stage_id === cur);
+  graph.nodes.forEach((n, i) => {
+    const li = document.createElement("li");
+    let cls = "future";
+    if (n.status === "APPROVED") cls = "done";
+    else if (n.is_current) cls = n.status === "AWAITING_HUMAN" ? "waiting" : "current";
+    else if (curIdx >= 0 && i < curIdx) cls = "done";
+    li.className = cls;
+    li.innerHTML = `
+      <span class="stage-node">${i + 1}</span>
+      <div class="stage-label">${n.stage_id}</div>
+      <div class="stage-status">${STAGE_LABELS[n.stage_id] || n.stage_id} — ${n.status}</div>`;
+    ul.appendChild(li);
+  });
 }
 
 function stageTimelineClass(stage, currentStage, status) {
@@ -639,6 +676,30 @@ document.getElementById("btn-goto-editor").onclick = () => {
 };
 document.getElementById("btn-goto-agent").onclick = () => {
   if (currentProblemId) navigate(`/problem/${currentProblemId}/agent`);
+};
+
+document.getElementById("btn-import-check").onclick = async () => {
+  if (!currentProblemId) return;
+  const job = await api(`/api/problems/${currentProblemId}/import/check`, { method: "POST" });
+  document.getElementById("run-verdict")?.textContent && (document.getElementById("run-verdict").textContent = "import_check…");
+  const done = await pollJob(job.id);
+  alert(done.result_json?.ok ? `import_check 通过 ${done.result_json.rounds} 轮` : `失败: ${done.result_json?.reason}`);
+  await refreshPipeline();
+};
+
+document.getElementById("btn-import-confirm").onclick = async () => {
+  if (!currentProblemId) return;
+  if (!document.getElementById("import-confirm-box").checked) {
+    alert("请勾选确认");
+    return;
+  }
+  await api(`/api/problems/${currentProblemId}/import/confirm-submission`, {
+    method: "POST",
+    body: JSON.stringify({
+      submission_url: document.getElementById("import-submission-url").value || null,
+    }),
+  });
+  await refreshPipeline();
 };
 
 document.getElementById("btn-save").onclick = async () => {

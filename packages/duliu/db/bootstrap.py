@@ -635,6 +635,105 @@ async def seed_m4_demo_set(session: AsyncSession, workspace: Workspace) -> Conte
     return cs
 
 
+async def ensure_m6_import_stages(session: AsyncSession) -> None:
+    """Backfill IMPORT stage for existing NON_ORIGINAL problems."""
+    from duliu.facade.import_flow import ensure_non_original_stages
+
+    result = await session.execute(select(Problem).where(Problem.originality == "NON_ORIGINAL"))
+    for p in result.scalars().all():
+        await ensure_non_original_stages(session, p)
+
+
+async def seed_m6_non_original_demo(session: AsyncSession, workspace: Workspace) -> Problem | None:
+    result = await session.execute(
+        select(Problem).where(
+            Problem.workspace_id == workspace.id,
+            Problem.title == "M6 NON_ORIGINAL Demo",
+        )
+    )
+    existing = result.scalar_one_or_none()
+    std_py = "import sys\nprint(sum(map(int, sys.stdin.read().split())))\n"
+    if existing:
+        for kind in ("std", "brute"):
+            art_r = await session.execute(
+                select(Artifact).where(
+                    Artifact.problem_id == existing.id, Artifact.kind == kind
+                ).order_by(Artifact.version.desc()).limit(1)
+            )
+            art = art_r.scalar_one_or_none()
+            if art:
+                art.content_text = std_py
+                art.language = "python"
+        await session.flush()
+        return None
+
+    from duliu.db.models import stage_order_for
+
+    url = "https://codeforces.com/problemset/problem/1/A"
+    order = stage_order_for("ICPC", "NON_ORIGINAL")
+    problem = Problem(
+        workspace_id=workspace.id,
+        title="M6 NON_ORIGINAL Demo",
+        originality="NON_ORIGINAL",
+        problem_type="TRADITIONAL",
+        contest_style="ICPC",
+        current_stage="IMPORT",
+        spec_json={
+            "import": {
+                "status": "imported",
+                "platform": "codeforces",
+                "problem_url": url,
+                "submission_requirement": {"required": True, "user_confirmed": False},
+                "import_check": {"ok": False},
+            },
+            "_stage_order": order,
+            "limits": {"time_ms": 1000, "memory_mb": 256},
+            "samples": [{"input": "1 2\n", "output": "3\n"}],
+        },
+    )
+    session.add(problem)
+    await session.flush()
+    for sid in order:
+        st = StageStatus.AWAITING_HUMAN.value if sid == "IMPORT" else StageStatus.PENDING.value
+        session.add(ProblemStage(problem_id=problem.id, stage_id=sid, status=st))
+    session.add(
+        Artifact(
+            problem_id=problem.id,
+            kind="statement",
+            version=1,
+            content_text="# M6 Demo\n\nImported A+B style.",
+            sha256=hashlib.sha256(b"stmt").hexdigest(),
+            author="seed",
+            language="markdown",
+        )
+    )
+    std_py = "import sys\nprint(sum(map(int, sys.stdin.read().split())))\n"
+    session.add(
+        Artifact(
+            problem_id=problem.id,
+            kind="std",
+            version=1,
+            content_text=std_py,
+            sha256=hashlib.sha256(std_py.encode()).hexdigest(),
+            author="seed",
+            language="python",
+        )
+    )
+    session.add(
+        Artifact(
+            problem_id=problem.id,
+            kind="brute",
+            version=1,
+            content_text=std_py,
+            sha256=hashlib.sha256(std_py.encode()).hexdigest(),
+            author="seed",
+            language="python",
+        )
+    )
+    await session.flush()
+    return problem
+
+
 async def create_contest_set(
     session: AsyncSession,
     workspace: Workspace,

@@ -43,6 +43,10 @@
 
 实现按 [PLAN.md §16](./PLAN.md#16-实施路线图) 里程碑推进。
 
+## M6 ✅ 已完成
+
+详见 [docs/M6-COMPLETE.md](./docs/M6-COMPLETE.md)。非原创 IMPORT、import_check、原题提交 Gate、流水线图 API。
+
 ## M5 ✅ 已完成
 
 详见 [docs/M5-COMPLETE.md](./docs/M5-COMPLETE.md)。爬虫导入、CLI、`docker compose up`（api+worker）。

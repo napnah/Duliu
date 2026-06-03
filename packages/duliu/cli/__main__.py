@@ -98,6 +98,22 @@ def _poll_job(job_id: str) -> None:
     sys.exit(1)
 
 
+def cmd_import_check(args: argparse.Namespace) -> None:
+    job = _req("POST", f"/api/problems/{args.problem_id}/import/check")
+    print(f"job_id={job['id']}")
+    if args.wait:
+        _poll_job(job["id"])
+
+
+def cmd_confirm_submission(args: argparse.Namespace) -> None:
+    _req(
+        "POST",
+        f"/api/problems/{args.problem_id}/import/confirm-submission",
+        json={"submission_url": args.url, "handle": args.handle},
+    )
+    print("submission confirmed")
+
+
 def cmd_chat(args: argparse.Namespace) -> None:
     sid = args.session_id
     if not sid:
@@ -142,6 +158,17 @@ def main() -> None:
     j.add_argument("job_id", type=uuid.UUID)
     j.add_argument("--cancel", action="store_true")
     j.set_defaults(func=cmd_job)
+
+    ic = sub.add_parser("import-check", help="Run import_check stress")
+    ic.add_argument("problem_id", type=uuid.UUID)
+    ic.add_argument("--wait", action="store_true")
+    ic.set_defaults(func=cmd_import_check)
+
+    cs = sub.add_parser("confirm-submission", help="Confirm original OJ submission")
+    cs.add_argument("problem_id", type=uuid.UUID)
+    cs.add_argument("--url", default=None)
+    cs.add_argument("--handle", default=None)
+    cs.set_defaults(func=cmd_confirm_submission)
 
     ch = sub.add_parser("chat", help="Session agent message")
     ch.add_argument("message")

@@ -16,12 +16,13 @@ from duliu.db.models import (
     stage_order_for,
 )
 from duliu.facade.events import emit_event
+from duliu.facade.import_gate import validate_approve, validate_dispatch
 
 
 class PipelineFacade:
     @staticmethod
     def next_stage(problem: Problem, current: str) -> str | None:
-        order = stage_order_for(problem.contest_style)
+        order = stage_order_for(problem.contest_style, problem.originality)
         try:
             idx = order.index(current)
         except ValueError:
@@ -51,6 +52,8 @@ class PipelineFacade:
 
         if problem.current_stage != stage_id:
             raise ValueError(f"Problem is at {problem.current_stage}, not {stage_id}")
+
+        validate_approve(problem, stage_id)
 
         stage.status = StageStatus.APPROVED.value
         stage.approved_by = approved_by
@@ -128,6 +131,8 @@ class PipelineFacade:
         rid = run_id or uuid.uuid4()
         if problem.current_stage != stage_id:
             raise ValueError(f"Problem is at {problem.current_stage}, cannot dispatch {stage_id}")
+
+        validate_dispatch(problem, stage_id)
 
         res = await session.execute(
             select(ProblemStage).where(

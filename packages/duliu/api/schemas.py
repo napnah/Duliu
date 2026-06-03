@@ -267,3 +267,8 @@ class CrawlImportRequest(BaseModel):
 class CrawlImportResponse(BaseModel):
     problem: ProblemOut
     job: JobOut
+
+
+class SubmissionConfirmRequest(BaseModel):
+    submission_url: str | None = None
+    handle: str | None = None

@@ -257,7 +257,12 @@ async def handle_stress(session: AsyncSession, job: RunnerJob, problem: Problem)
     samples = problem.spec_json.get("samples", [])
     inputs = [s["input"] for s in samples if "input" in s]
     mode = job.payload_json.get("mode", "quick")
-    target = 50 if mode == "quick" else 500
+    if mode == "import_check":
+        target = 200
+    elif mode == "quick":
+        target = 50
+    else:
+        target = 500
     while len(inputs) < target:
         inputs.append(f"{random.randint(-1000, 1000)} {random.randint(-1000, 1000)}\n")
 
@@ -280,6 +285,7 @@ async def handle_stress(session: AsyncSession, job: RunnerJob, problem: Problem)
     job.status = JobStatus.DONE.value
     job.result_json = report
     job.log_text = str(report)
+    stage = "IMPORT" if mode == "import_check" else "STRESS"
     await emit_event(
         session,
         problem_id=problem.id,
@@ -287,10 +293,14 @@ async def handle_stress(session: AsyncSession, job: RunnerJob, problem: Problem)
         message="stress OK" if report.get("ok") else f"stress fail: {report.get('reason')}",
         source="runner",
         job_id=job.id,
-        stage_id="STRESS",
+        stage_id=stage,
         level="INFO" if report.get("ok") else "WARN",
         payload=report,
     )
+    if mode == "import_check":
+        from duliu.facade.import_flow import record_import_check_result
+
+        await record_import_check_result(session, problem, report)
 
 
 async def handle_interactive(session: AsyncSession, job: RunnerJob, problem: Problem) -> None:

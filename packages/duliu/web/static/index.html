@@ -97,6 +97,21 @@
             <button type="button" class="btn-secondary" id="btn-approve">通过 Gate</button>
           </div>
         </div>
+        <div id="import-panel" class="card hidden">
+          <h2 class="card-title">非原创 · 原题与 import_check</h2>
+          <p class="muted" id="import-url"></p>
+          <p class="muted" id="import-status-line"></p>
+          <label class="gh-check">
+            <input type="checkbox" id="import-confirm-box" />
+            我已在原题平台提交或核对过该题
+          </label>
+          <input id="import-submission-url" class="gh-input" placeholder="提交链接（选填）" />
+          <div class="btn-row" style="margin-top:10px">
+            <button type="button" class="btn-secondary" id="btn-import-check">运行 import_check</button>
+            <button type="button" class="btn-primary" id="btn-import-confirm">保存提交确认</button>
+            <a id="import-open-url" class="btn-ghost" target="_blank" rel="noopener">打开原题</a>
+          </div>
+        </div>
         <div class="pipeline-layout">
           <div class="card stage-timeline-card">
             <h2 class="card-title">阶段进度</h2>

@@ -40,6 +40,7 @@ from duliu.api.schemas import (
     CrawlerConfigSet,
     CrawlImportRequest,
     CrawlImportResponse,
+    SubmissionConfirmRequest,
     SessionCreate,
     SessionOut,
     StageAction,
@@ -57,6 +58,8 @@ from duliu.db.bootstrap import (
     refresh_interactive_interactor,
     seed_interactive_demo,
     seed_m4_demo_set,
+    ensure_m6_import_stages,
+    seed_m6_non_original_demo,
     seed_package_ready_problem,
     seed_demo_contest_set,
     seed_demo_problem,
@@ -81,6 +84,8 @@ from duliu.db.models import (
 from duliu.db.session import async_session, get_db, init_db
 from duliu.facade.contest import ContestFacade
 from duliu.facade.crawl import CrawlFacade
+from duliu.facade.import_flow import confirm_submission, enqueue_import_check
+from duliu.pipeline.orchestrator import PipelineOrchestrator
 from duliu.facade.jobs import JobFacade
 from duliu.facade.secrets_store import get_crawler_config, set_crawler_config
 from duliu.facade.pipeline import PipelineFacade
@@ -109,11 +114,13 @@ async def lifespan(app: FastAPI):
         await seed_communication_demo(session, ws)
         await seed_package_ready_problem(session, ws)
         await seed_m4_demo_set(session, ws)
+        await ensure_m6_import_stages(session)
+        await seed_m6_non_original_demo(session, ws)
         await session.commit()
     yield
 
 
-app = FastAPI(title="Duliu API", version="0.5.0", lifespan=lifespan)
+app = FastAPI(title="Duliu API", version="0.6.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins.split(","),
@@ -128,7 +135,7 @@ if WEB_DIR.is_dir():
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "milestone": "M5"}
+    return {"status": "ok", "milestone": "M6"}
 
 
 @app.get("/")
@@ -331,18 +338,84 @@ async def get_problem(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db))
 
 @app.get("/api/problems/{problem_id}/stages")
 async def list_stages(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    from duliu.db.models import stage_order_for
+
+    order = stage_order_for(p.contest_style, p.originality)
     rows = (
         await db.execute(select(ProblemStage).where(ProblemStage.problem_id == problem_id))
     ).scalars().all()
-    return [
-        {
-            "stage_id": s.stage_id,
-            "status": s.status,
-            "approved_by": s.approved_by,
-            "note": s.note,
-        }
-        for s in rows
-    ]
+    by_id = {s.stage_id: s for s in rows}
+    out = []
+    for sid in order:
+        s = by_id.get(sid)
+        if not s:
+            continue
+        out.append(
+            {
+                "stage_id": s.stage_id,
+                "status": s.status,
+                "approved_by": s.approved_by,
+                "note": s.note,
+            }
+        )
+    for s in rows:
+        if s.stage_id not in order:
+            out.append(
+                {
+                    "stage_id": s.stage_id,
+                    "status": s.status,
+                    "approved_by": s.approved_by,
+                    "note": s.note,
+                }
+            )
+    return out
+
+
+@app.get("/api/problems/{problem_id}/pipeline-graph")
+async def pipeline_graph(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    return await PipelineOrchestrator.snapshot(db, p)
+
+
+@app.post("/api/problems/{problem_id}/import/confirm-submission", response_model=ProblemOut)
+async def confirm_import_submission(
+    problem_id: uuid.UUID,
+    body: SubmissionConfirmRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    try:
+        await confirm_submission(
+            db,
+            p,
+            submission_url=body.submission_url,
+            handle=body.handle,
+        )
+        await db.commit()
+        await db.refresh(p)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return ProblemOut.model_validate(p)
+
+
+@app.post("/api/problems/{problem_id}/import/check", response_model=JobOut)
+async def run_import_check(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    if p.originality != "NON_ORIGINAL":
+        raise HTTPException(400, "import_check only for NON_ORIGINAL")
+    job = await enqueue_import_check(db, p)
+    await db.commit()
+    await db.refresh(job)
+    return JobOut.model_validate(job)
 
 
 @app.post("/api/problems/{problem_id}/stages/{stage_id}/approve", response_model=ProblemOut)

@@ -46,9 +46,7 @@ python -m duliu.cli chat "状态" --problem-id <uuid>
 
 需在设置页配置对应 Cookie（登录站点）以提高抓取成功率。
 
-## 未包含（M6+）
+## 未包含（已在 M6 补齐部分）
 
-- LangGraph 编排、Isolate 沙箱
-- 自动拉取用户 AC 提交作为标程
-- 独立 crawler 容器与出站代理
-- `import_check` 自动对拍流水线
+- `import_check`、IMPORT 阶段、提交 Gate → 见 [M6-COMPLETE.md](./M6-COMPLETE.md)
+- 仍待：LangGraph 真图、Isolate、AC 标程自动拉取、独立 crawler 容器

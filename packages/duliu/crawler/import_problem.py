@@ -92,6 +92,18 @@ async def crawl_and_import(
         )
     )
 
+    if problem.originality == "NON_ORIGINAL":
+        problem.current_stage = "IMPORT"
+        from duliu.facade.import_flow import ensure_non_original_stages, enqueue_import_check, seed_brute_if_missing
+
+        await ensure_non_original_stages(session, problem)
+        await seed_brute_if_missing(session, problem)
+        std = await session.execute(
+            select(Artifact).where(Artifact.problem_id == problem.id, Artifact.kind == "std").limit(1)
+        )
+        if std.scalar_one_or_none():
+            await enqueue_import_check(session, problem)
+
     await emit_event(
         session,
         problem_id=problem.id,
