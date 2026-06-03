@@ -17,12 +17,18 @@ let routeSeq = 0;
 const VIEWS = [
   "view-home",
   "view-contest",
-  "view-pipeline",
-  "view-editor",
-  "view-agent",
+  "view-workspace",
   "view-monitor",
   "view-settings",
 ];
+
+const WORKSPACE_TABS = new Set(["workspace", "work", "pipeline", "editor", "agent"]);
+
+let mdCache = { statement: "", editorial: "" };
+let activeWsPane = "code";
+/** Editor.md — https://editor.md.ipandao.com */
+const EDITORMD_LIB = "https://cdn.jsdelivr.net/npm/editor.md@1.5.0/lib/";
+const editorMd = { statement: null, editorial: null };
 
 const STAGE_LABELS = {
   IMPORT: "爬取导入",
@@ -35,6 +41,69 @@ const STAGE_LABELS = {
   PACKAGE: "题包",
   EDITORIAL: "题解",
   DONE: "完成",
+};
+
+/** 各阶段工作区快捷操作（替代原 import 大面板） */
+const STAGE_UI_ACTIONS = {
+  IMPORT: [
+    { action: "import_check", label: "运行 import_check" },
+    { action: "fetch_std", label: "拉取 CF 标程" },
+    { action: "open_source", label: "打开原题" },
+    { action: "import_confirm", label: "提交确认", primary: true },
+    { action: "chat", label: "调度 IMPORT", message: "dispatch IMPORT" },
+    { action: "approve", label: "通过 IMPORT" },
+  ],
+  SPEC: [
+    { action: "pane", label: "查看题面", pane: "statement" },
+    { action: "chat", label: "调度 SPEC", message: "dispatch SPEC" },
+    { action: "approve", label: "通过 SPEC" },
+  ],
+  STATEMENT: [
+    { action: "pane", label: "编辑题面", pane: "statement" },
+    { action: "chat", label: "调度 STATEMENT", message: "dispatch STATEMENT" },
+    { action: "approve", label: "通过 STATEMENT" },
+  ],
+  SOLUTION: [
+    { action: "pane", label: "编辑标程", pane: "code", artifact: "std" },
+    { action: "load_sample", label: "加载样例" },
+    { action: "run", label: "运行 (F9)" },
+    { action: "chat", label: "调度 SOLUTION", message: "dispatch SOLUTION" },
+    { action: "approve", label: "通过 SOLUTION" },
+  ],
+  GENERATOR: [
+    { action: "chat", label: "调度 GENERATOR", message: "dispatch GENERATOR" },
+    { action: "approve", label: "通过 GENERATOR" },
+  ],
+  STRESS: [
+    { action: "stress_quick", label: "快速对拍" },
+    { action: "counterexamples", label: "反例列表" },
+    { action: "chat", label: "调度 STRESS", message: "dispatch STRESS" },
+    { action: "approve", label: "通过 STRESS" },
+  ],
+  ADVERSARIAL_REVIEW: [
+    { action: "chat", label: "调度审查", message: "dispatch ADVERSARIAL_REVIEW" },
+    { action: "approve", label: "通过审查" },
+  ],
+  PACKAGE: [
+    { action: "polygon_zip", label: "Polygon zip" },
+    { action: "package_sync", label: "题包同步" },
+    { action: "chat", label: "调度 PACKAGE", message: "dispatch PACKAGE" },
+    { action: "approve", label: "通过 PACKAGE" },
+  ],
+  EDITORIAL: [
+    { action: "pane", label: "查看题解", pane: "editorial" },
+    { action: "chat", label: "调度 EDITORIAL", message: "dispatch EDITORIAL" },
+    { action: "approve", label: "通过 EDITORIAL" },
+  ],
+  DONE: [
+    { action: "pane", label: "题面", pane: "statement" },
+    { action: "pane", label: "题解", pane: "editorial" },
+  ],
+  _default: [
+    { action: "chat", label: "调度当前阶段", message: "dispatch" },
+    { action: "approve", label: "通过当前阶段" },
+    { action: "chat", label: "查看状态", message: "状态" },
+  ],
 };
 
 /* ── API ── */
@@ -59,7 +128,8 @@ function parseRoute() {
   if (parts[0] === "settings") return { page: "settings" };
   if (parts[0] === "contest" && parts[1]) return { page: "contest", contestId: parts[1] };
   if (parts[0] === "problem" && parts[1]) {
-    const tab = parts[2] || "pipeline";
+    let tab = parts[2] || "workspace";
+    if (WORKSPACE_TABS.has(tab) && tab !== "monitor") tab = "workspace";
     return { page: "problem", problemId: parts[1], tab };
   }
   return { page: "home" };
@@ -77,13 +147,12 @@ function navigate(path) {
 }
 
 function problemViewId(tab) {
-  const map = {
-    pipeline: "view-pipeline",
-    editor: "view-editor",
-    agent: "view-agent",
-    monitor: "view-monitor",
-  };
-  return map[tab] || "view-pipeline";
+  if (tab === "monitor") return "view-monitor";
+  return "view-workspace";
+}
+
+function isWorkspaceRoute(route) {
+  return route.page === "problem" && route.tab !== "monitor";
 }
 
 function showView(viewId) {
@@ -91,9 +160,10 @@ function showView(viewId) {
     document.getElementById(id).classList.toggle("hidden", id !== viewId);
   }
   const shell = document.getElementById("app-shell");
-  const isEditor = viewId === "view-editor";
+  const isWorkspace = viewId === "view-workspace";
   const isSettings = viewId === "view-settings";
-  shell.classList.toggle("sidebar-collapsed", isEditor || viewId === "view-agent");
+  shell.classList.toggle("sidebar-collapsed", isWorkspace);
+  shell.classList.toggle("workspace-mode", isWorkspace);
   document.getElementById("sidebar").classList.toggle("hidden", isSettings);
 }
 
@@ -109,9 +179,9 @@ function updateBreadcrumb(route) {
       const c = treeCache?.contest_sets.find((x) => x.id === currentContestSetId);
       if (c) parts.push(` / <a href="#/contest/${currentContestSetId}">${c.name}</a>`);
     }
-    parts.push(` / <a href="#/problem/${route.problemId}/pipeline">${currentProblem.title}</a>`);
-    const tabNames = { pipeline: "流水线", editor: "编辑器", agent: "Agent", monitor: "监控" };
-    parts.push(` / ${tabNames[route.tab] || route.tab}`);
+    parts.push(` / <a href="#/problem/${route.problemId}/workspace">${currentProblem.title}</a>`);
+    const tabNames = { workspace: "工作区", monitor: "监控" };
+    parts.push(` / ${tabNames[route.tab] || "工作区"}`);
   }
   if (route.page === "settings") parts.push(" / 设置");
   el.innerHTML = parts.join("");
@@ -130,7 +200,11 @@ function updateProblemSubnav(route) {
   if (!show) return;
   nav.querySelectorAll("[data-problem-tab]").forEach((a) => {
     const tab = a.dataset.problemTab;
-    a.classList.toggle("active", tab === route.tab);
+    const active =
+      tab === "workspace"
+        ? isWorkspaceRoute(route)
+        : tab === route.tab;
+    a.classList.toggle("active", active);
     a.href = `#/problem/${route.problemId}/${tab}`;
     a.onclick = (e) => {
       e.preventDefault();
@@ -176,7 +250,7 @@ async function onRoute() {
   }
 
   if (route.page === "problem") {
-    const tab = route.tab || "pipeline";
+    const tab = route.tab || "workspace";
     showView(problemViewId(tab));
     currentProblemId = route.problemId;
     currentContestSetId = null;
@@ -185,22 +259,20 @@ async function onRoute() {
     await openProblem(route.problemId);
     if (seq !== routeSeq) return;
 
-    if (tab === "pipeline") {
+    if (isWorkspaceRoute(route)) {
       await refreshPipeline();
       if (seq !== routeSeq) return;
-      stagePollTimer = setInterval(refreshPipeline, 5000);
-    } else if (tab === "editor") {
+      await refreshRunnerEnv();
+      if (seq !== routeSeq) return;
       await ensureMonaco();
       if (seq !== routeSeq) return;
       await loadArtifactKinds();
       if (seq !== routeSeq) return;
       layoutMonaco();
-    } else if (tab === "agent") {
+      if (seq !== routeSeq) return;
       await refreshAgentContext();
       if (seq !== routeSeq) return;
-      await refreshStageTimeline("agent-stage-timeline");
-      if (seq !== routeSeq) return;
-      stagePollTimer = setInterval(() => refreshStageTimeline("agent-stage-timeline"), 5000);
+      stagePollTimer = setInterval(refreshPipeline, 5000);
     } else if (tab === "monitor") {
       await loadEvents();
       if (seq !== routeSeq) return;
@@ -381,7 +453,7 @@ async function loadTree() {
     li.classList.toggle("active", p.id === currentProblemId);
     li.onclick = (e) => {
       e.preventDefault();
-      navigate(`/problem/${p.id}/pipeline`);
+      navigate(`/problem/${p.id}/workspace`);
     };
     ul.appendChild(li);
   }
@@ -403,7 +475,7 @@ function renderHomeRecent() {
     const d = document.createElement("div");
     d.className = "home-card";
     d.innerHTML = `<strong>单题</strong><br>${p.title}<br><span class="muted">${p.current_stage}</span>`;
-    d.onclick = () => navigate(`/problem/${p.id}/agent`);
+    d.onclick = () => navigate(`/problem/${p.id}/workspace`);
     box.appendChild(d);
   }
 }
@@ -437,20 +509,32 @@ async function openContest(id) {
   await refreshContestLanggraphHistory(id);
 }
 
-async function renderLanggraphHistory(listId, metaId, data) {
+async function renderLanggraphHistory(listId, metaId, data, health) {
   const ul = document.getElementById(listId);
   const meta = document.getElementById(metaId);
   if (!ul) return;
   ul.innerHTML = "";
-  if (!data?.enabled) {
-    if (meta) meta.textContent = "LangGraph 未启用";
+  const serverOn = health?.langgraph ?? data?.enabled;
+  if (!data?.enabled && !serverOn) {
+    if (meta) {
+      meta.textContent =
+        "LangGraph 未启用 — 设置环境变量 DULIU_USE_LANGGRAPH=true 并重启服务";
+    }
     ul.innerHTML = "<li>—</li>";
     return;
   }
-  if (meta) meta.textContent = `thread: ${data.thread_id || "—"}`;
+  if (!data?.enabled && serverOn) {
+    if (meta) meta.textContent = data?.error || "LangGraph 已开启，但无法加载历史（检查 langgraph 依赖与 checkpoint）";
+    ul.innerHTML = "<li>—</li>";
+    return;
+  }
+  const cp = health?.langgraph_checkpoint || "";
+  if (meta) {
+    meta.textContent = `thread: ${data.thread_id || "—"}${cp ? ` · checkpointer: ${cp}` : ""}`;
+  }
   const hist = data.history || [];
   if (!hist.length) {
-    ul.innerHTML = "<li>暂无 checkpoint</li>";
+    ul.innerHTML = "<li>暂无 checkpoint（调度 dispatch 后生成）</li>";
     return;
   }
   for (const h of hist) {
@@ -465,22 +549,42 @@ async function renderLanggraphHistory(listId, metaId, data) {
   }
 }
 
+async function fetchHealth() {
+  try {
+    return await api("/api/health");
+  } catch {
+    return {};
+  }
+}
+
 async function refreshContestLanggraphHistory(contestSetId) {
+  const health = await fetchHealth();
   try {
     const data = await api(`/api/contest-sets/${contestSetId}/langgraph/history`);
-    await renderLanggraphHistory("contest-lg-history", "contest-lg-meta", data);
-  } catch {
-    await renderLanggraphHistory("contest-lg-history", "contest-lg-meta", { enabled: false });
+    await renderLanggraphHistory("contest-lg-history", "contest-lg-meta", data, health);
+  } catch (e) {
+    await renderLanggraphHistory(
+      "contest-lg-history",
+      "contest-lg-meta",
+      { enabled: !!health.langgraph, history: [], error: e.message },
+      health
+    );
   }
 }
 
 async function refreshPipelineLanggraphHistory() {
   if (!currentProblemId) return;
+  const health = await fetchHealth();
   try {
     const data = await api(`/api/problems/${currentProblemId}/langgraph/history`);
-    await renderLanggraphHistory("pipeline-lg-history", "pipeline-lg-meta", data);
-  } catch {
-    await renderLanggraphHistory("pipeline-lg-history", "pipeline-lg-meta", { enabled: false });
+    await renderLanggraphHistory("pipeline-lg-history", "pipeline-lg-meta", data, health);
+  } catch (e) {
+    await renderLanggraphHistory(
+      "pipeline-lg-history",
+      "pipeline-lg-meta",
+      { enabled: !!health.langgraph, history: [], error: e.message },
+      health
+    );
   }
 }
 
@@ -524,7 +628,7 @@ function renderSlotTable(detail) {
     tr.innerHTML = `<td>${s.slot_label}</td><td>${title}</td><td>${stage}</td><td>${rating}</td><td><span class="muted">打开 →</span></td>`;
     tr.onclick = () => {
       currentSlotLabel = s.slot_label;
-      if (s.problem_id) navigate(`/problem/${s.problem_id}/pipeline`);
+      if (s.problem_id) navigate(`/problem/${s.problem_id}/workspace`);
     };
     tbody.appendChild(tr);
   }
@@ -552,21 +656,8 @@ async function refreshPipeline() {
   document.getElementById("pipeline-style").textContent =
     `${p.contest_style} / ${p.problem_type} / ${p.originality}`;
   document.getElementById("pipeline-control").textContent = p.control_mode;
-  const impPanel = document.getElementById("import-panel");
-  if (p.originality === "NON_ORIGINAL") {
-    impPanel.classList.remove("hidden");
-    const imp = graph.import || {};
-    document.getElementById("import-url").textContent = imp.problem_url || "（无 URL）";
-    const chk = imp.agent_checklist;
-    const chkHint = chk?.steps?.length ? ` · 清单 ${chk.steps.length} 项` : "";
-    document.getElementById("import-status-line").textContent =
-      `导入: ${imp.status || "-"} · import_check: ${imp.import_check_ok ? "通过" : "未通过"} · 提交确认: ${imp.submission_confirmed ? "是" : "否"}${chkHint}`;
-    const link = document.getElementById("import-open-url");
-    if (imp.problem_url) link.href = imp.problem_url;
-    document.getElementById("import-confirm-box").checked = !!imp.submission_confirmed;
-  } else {
-    impPanel.classList.add("hidden");
-  }
+  window.__importMeta = graph.import || {};
+  renderStageActions(p);
   const polyLine = document.getElementById("polygon-upload-line");
   if (polyLine) {
     try {
@@ -590,6 +681,105 @@ async function refreshPipeline() {
   }
   renderGraphTimeline("stage-timeline", graph);
   await refreshPipelineLanggraphHistory();
+}
+
+function renderStageActions(p) {
+  const bar = document.getElementById("stage-actions-bar");
+  if (!bar) return;
+  const stage = p.current_stage;
+  let actions = STAGE_UI_ACTIONS[stage] || STAGE_UI_ACTIONS._default;
+  if (stage !== "IMPORT" && p.originality === "NON_ORIGINAL" && !window.__importMeta?.import_check_ok) {
+    actions = [
+      { action: "import_check", label: "运行 import_check" },
+      { action: "fetch_std", label: "拉取 CF 标程" },
+      ...actions.slice(0, 4),
+    ];
+  }
+  bar.classList.remove("hidden");
+  bar.innerHTML = "";
+  const label = document.createElement("span");
+  label.className = "stage-actions-label";
+  label.textContent = `${STAGE_LABELS[stage] || stage} · 操作`;
+  const inner = document.createElement("div");
+  inner.className = "stage-actions-inner";
+  bar.appendChild(label);
+  bar.appendChild(inner);
+  for (const a of actions) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = a.primary ? "btn-stage-primary" : "btn-stage btn-secondary btn-sm";
+    btn.textContent = a.label;
+    btn.onclick = () => runStageUiAction(a);
+    inner.appendChild(btn);
+  }
+}
+
+async function runStageUiAction(a) {
+  if (!currentProblemId) return;
+  if (a.pane) {
+    if (a.artifact) {
+      const sel = document.getElementById("artifact-kind");
+      if (sel) sel.value = a.artifact;
+      await loadArtifactContent(a.artifact);
+    }
+    setWorkspacePane(a.pane === "code" ? "code" : a.pane);
+    return;
+  }
+  if (a.action === "import_check") {
+    document.getElementById("btn-import-check")?.click();
+    return;
+  }
+  if (a.action === "fetch_std") {
+    document.getElementById("btn-fetch-ac-std")?.click();
+    return;
+  }
+  if (a.action === "import_confirm") {
+    document.getElementById("btn-import-confirm")?.click();
+    return;
+  }
+  if (a.action === "open_source") {
+    const url = window.__importMeta?.problem_url;
+    if (url) window.open(url, "_blank", "noopener");
+    else alert("无原题 URL");
+    return;
+  }
+  if (a.action === "approve") {
+    document.getElementById("btn-approve")?.click();
+    return;
+  }
+  if (a.action === "load_sample") {
+    document.getElementById("btn-load-sample")?.click();
+    return;
+  }
+  if (a.action === "run") {
+    document.getElementById("btn-run")?.click();
+    return;
+  }
+  if (a.action === "stress_quick") {
+    document.getElementById("btn-stress-quick")?.click();
+    return;
+  }
+  if (a.action === "counterexamples") {
+    document.getElementById("btn-counterexamples")?.click();
+    return;
+  }
+  if (a.action === "polygon_zip") {
+    document.getElementById("btn-polygon-zip")?.click();
+    return;
+  }
+  if (a.action === "package_sync") {
+    document.getElementById("btn-package-sync")?.click();
+    return;
+  }
+  if (a.action === "chat" && a.message) {
+    let msg = a.message;
+    if (msg === "dispatch") {
+      const st = currentProblem?.current_stage;
+      msg = `dispatch ${st}`;
+    }
+    await sendAgentMessage(msg);
+    return;
+  }
 }
 
 function renderGraphTimeline(containerId, graph) {
@@ -660,7 +850,6 @@ async function refreshAgentContext() {
   const p = currentProblem || (await api(`/api/problems/${currentProblemId}`));
   document.getElementById("agent-context").textContent =
     `${p.title} · 当前阶段 ${p.current_stage} · ${p.contest_style}`;
-  renderAgentChips(p.current_stage);
   await refreshAgentToolsPanel();
 }
 
@@ -712,30 +901,6 @@ async function refreshAgentToolsPanel() {
   }
 }
 
-function renderAgentChips(stage) {
-  const box = document.getElementById("agent-chips");
-  box.innerHTML = "";
-  const cmds = [
-    `dispatch ${stage}`,
-    `approve ${stage}`,
-    "状态",
-    "对拍",
-    "最近事件",
-    "dispatch PACKAGE",
-  ];
-  if (currentContestSetId) cmds.push("套题状态", "套题评估");
-  for (const c of cmds) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = c;
-    b.onclick = () => {
-      document.getElementById("chat-input").value = c;
-      document.getElementById("btn-chat-send").click();
-    };
-    box.appendChild(b);
-  }
-}
-
 /* ── Artifacts & run ── */
 async function loadArtifactKinds() {
   const data = await api(`/api/problems/${currentProblemId}/artifacts`);
@@ -750,6 +915,9 @@ async function loadArtifactKinds() {
     o.textContent = k;
     sel.appendChild(o);
   }
+  const codeKinds = ["std", "brute", "checker", "interactor", "gen", "protocol"];
+  const pick = codeKinds.find((k) => ordered.includes(k)) || ordered[0] || "std";
+  sel.value = pick;
   await loadArtifactContent(sel.value);
   sel.onchange = () => {
     loadArtifactContent(sel.value);
@@ -822,17 +990,199 @@ async function pollJob(jobId) {
   throw new Error("job timeout");
 }
 
+function jobResultMessage(done) {
+  const r = done.result_json || {};
+  if (r.error) return String(r.error);
+  if (r.reason) return String(r.reason);
+  if (r.verdict) return String(r.verdict);
+  if (done.log_text) return String(done.log_text).slice(0, 800);
+  return done.status || "unknown";
+}
+
 function showRunResult(done) {
   const r = done.result_json || {};
-  let text = (r.stdout || "") + (r.stderr ? "\n[stderr]\n" + r.stderr : "");
-  if (r.compile_log) text += "\n[compile]\n" + r.compile_log;
-  if (r.std) text += "\n[std]\n" + JSON.stringify(r.std, null, 2);
-  if (r.brute) text += "\n[brute]\n" + JSON.stringify(r.brute, null, 2);
-  document.getElementById("run-output").textContent = text;
+  const stdout = r.stdout || "";
+  let detail = "";
+  if (r.stderr) detail += "[stderr]\n" + r.stderr + "\n";
+  if (r.compile_log) detail += "[compile]\n" + r.compile_log + "\n";
+  if (r.std) detail += "[std]\n" + JSON.stringify(r.std, null, 2) + "\n";
+  if (r.brute) detail += "[brute]\n" + JSON.stringify(r.brute, null, 2) + "\n";
+  if (done.status === "failed" && r.error) detail = (detail ? detail + "\n" : "") + r.error;
+
+  const stdoutEl = document.getElementById("run-stdout");
+  const outEl = document.getElementById("run-output");
+  if (stdoutEl) stdoutEl.textContent = stdout || (detail ? "" : "（无输出）");
+  if (outEl) {
+    outEl.textContent =
+      detail.trim() || (stdout ? "" : jobResultMessage(done)) || "（无附加信息）";
+  }
+
   const el = document.getElementById("run-verdict");
-  const v = r.verdict || done.status;
+  const v = r.verdict || (done.status === "failed" ? jobResultMessage(done) : done.status);
   el.textContent = v;
-  el.className = "verdict " + (v === "OK" || v === "AC" ? "ok" : "fail");
+  const ok = v === "OK" || v === "AC" || (r.ok === true && done.status === "done");
+  el.className = "verdict " + (ok ? "ok" : "fail");
+}
+
+async function refreshRunnerEnv() {
+  const el = document.getElementById("runner-env-hint");
+  if (!el) return;
+  try {
+    const st = await api("/api/runner/sandbox-status");
+    const gppOk =
+      st.gpp_available === true || (st.gpp_available === undefined && !!st.gpp_path);
+    const pyOk =
+      st.python3_available === true ||
+      (st.python3_available === undefined && !!st.python_path);
+    const gpp = gppOk
+      ? `g++ 就绪${st.gpp_path ? ` (${st.gpp_path})` : ""}`
+      : "g++ 未安装 — 在容器执行: apt-get update && apt-get install -y g++ python3，或重建镜像";
+    const py = pyOk ? "python 就绪" : "python 未安装";
+    const javac = st.javac_available ? " · javac 就绪" : "";
+    el.textContent = `Runner: ${st.mode} · ${gpp} · ${py}${javac}`;
+  } catch (e) {
+    el.textContent = `Runner 状态未知: ${e.message}`;
+  }
+}
+
+function renderMarkdown(el, text) {
+  if (!el) return;
+  const src = text || "";
+  if (typeof marked !== "undefined") {
+    marked.setOptions({ gfm: true, breaks: true });
+    el.innerHTML = marked.parse(src);
+  } else {
+    el.textContent = src;
+  }
+  if (typeof renderMathInElement !== "undefined") {
+    renderMathInElement(el, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true },
+      ],
+      throwOnError: false,
+    });
+  }
+}
+
+function setWorkspacePane(name) {
+  activeWsPane = name;
+  document.querySelectorAll("[data-ws-pane]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.wsPane === name);
+  });
+  document.querySelectorAll(".workspace-pane-stack > .ws-pane").forEach((pane) => {
+    const id = pane.id.replace("ws-pane-", "");
+    pane.classList.toggle("active", id === name);
+  });
+  if (name === "code") {
+    const sel = document.getElementById("artifact-kind");
+    if (sel && (sel.value === "statement" || sel.value === "editorial")) {
+      sel.value = orderedIncludesStd(sel) ? "std" : "brute";
+      void loadArtifactContent(sel.value);
+    }
+    requestAnimationFrame(() => layoutMonaco());
+  } else if (editor) {
+    /* 切走代码页时触发 layout，避免 Monaco 残留绘制 */
+    requestAnimationFrame(() => editor.layout());
+  }
+  if (name === "statement") void loadMarkdownPane("statement");
+  if (name === "editorial") void loadMarkdownPane("editorial");
+}
+
+function orderedIncludesStd(sel) {
+  return Array.from(sel.options).some((o) => o.value === "std");
+}
+
+function editorMdContainerId(kind) {
+  return kind === "statement" ? "editormd-statement" : "editormd-editorial";
+}
+
+function getEditorMdContent(kind) {
+  const ed = editorMd[kind];
+  if (ed && typeof ed.getMarkdown === "function") {
+    return ed.getMarkdown() || "";
+  }
+  return mdCache[kind] || "";
+}
+
+function resizeEditorMd(kind) {
+  const ed = editorMd[kind];
+  if (ed && typeof ed.resize === "function") {
+    requestAnimationFrame(() => ed.resize());
+  }
+}
+
+function ensureEditorMd(kind, initialText) {
+  return new Promise((resolve) => {
+    if (typeof editormd === "undefined") {
+      resolve(null);
+      return;
+    }
+    const id = editorMdContainerId(kind);
+    const text = initialText ?? mdCache[kind] ?? "";
+    if (editorMd[kind]) {
+      editorMd[kind].setMarkdown(text);
+      resizeEditorMd(kind);
+      resolve(editorMd[kind]);
+      return;
+    }
+    const src = document.getElementById(`${id}-src`);
+    if (src) src.value = text;
+    const host = document.getElementById(id)?.closest(".editormd-host");
+    const stack = document.querySelector(".workspace-pane-stack");
+    const h = Math.max(
+      320,
+      (host?.clientHeight || 0) || (stack?.clientHeight || 0) - 48 || 400
+    );
+    editorMd[kind] = editormd(id, {
+      width: "100%",
+      height: h,
+      path: EDITORMD_LIB,
+      markdown: text,
+      tex: true,
+      texPreview: true,
+      watch: true,
+      syncScrolling: "single",
+      autoHeight: false,
+      placeholder:
+        kind === "statement" ? "题面 Markdown（支持 LaTeX）…" : "题解 Markdown（支持 LaTeX）…",
+      onload: function () {
+        this.resize();
+        resolve(this);
+      },
+    });
+  });
+}
+
+async function loadMarkdownPane(kind) {
+  if (!currentProblemId) return;
+  try {
+    const art = await api(`/api/problems/${currentProblemId}/artifacts/${kind}`);
+    mdCache[kind] = art.content_text || "";
+  } catch {
+    mdCache[kind] =
+      kind === "statement"
+        ? "# 题面\n\n（运行 STATEMENT 阶段或导入原题后点「刷新」）\n"
+        : "# 题解\n\n（运行 EDITORIAL 阶段后点「刷新」）\n";
+  }
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  await ensureEditorMd(kind, mdCache[kind]);
+  setTimeout(() => resizeEditorMd(kind), 200);
+}
+
+async function saveMarkdownPane(kind) {
+  if (!currentProblemId) return;
+  mdCache[kind] = getEditorMdContent(kind);
+  await api(`/api/problems/${currentProblemId}/artifacts/${kind}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      content_text: mdCache[kind],
+      language: "markdown",
+      author: "human",
+    }),
+  });
 }
 
 async function loadEvents() {
@@ -877,12 +1227,35 @@ async function ensureSession() {
   return sessionId;
 }
 
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function formatChatHtml(text) {
+  const raw = escapeHtml(text || "");
+  if (typeof marked !== "undefined") {
+    marked.setOptions({ gfm: true, breaks: true });
+    return marked.parse(raw);
+  }
+  return raw.replace(/\n/g, "<br>");
+}
+
 function appendChat(role, text, toolsUsed) {
   const log = document.getElementById("chat-log");
-  const div = document.createElement("div");
-  div.className = `chat-msg ${role}`;
-  div.textContent = text;
-  log.appendChild(div);
+  const wrap = document.createElement("div");
+  wrap.className = `chat-msg-wrap ${role}`;
+  const bubble = document.createElement("div");
+  bubble.className = `chat-bubble chat-msg ${role}`;
+  if (role === "assistant") {
+    bubble.innerHTML = formatChatHtml(text);
+  } else {
+    bubble.textContent = text;
+  }
+  wrap.appendChild(bubble);
+  log.appendChild(wrap);
   if (role === "assistant" && toolsUsed && toolsUsed.length) {
     const chips = document.createElement("div");
     chips.className = "chat-tools";
@@ -894,9 +1267,69 @@ function appendChat(role, text, toolsUsed) {
       span.title = t.result ? String(t.result).slice(0, 200) : "";
       chips.appendChild(span);
     }
-    log.appendChild(chips);
+    wrap.appendChild(chips);
   }
   log.scrollTop = log.scrollHeight;
+}
+
+function showChatSuggestions(actions) {
+  const box = document.getElementById("chat-suggestions");
+  if (!box) return;
+  if (!actions?.length) {
+    box.classList.add("hidden");
+    box.innerHTML = "";
+    return;
+  }
+  box.classList.remove("hidden");
+  box.innerHTML =
+    '<div class="chat-suggestions-label">建议下一步</div><div class="chat-suggestion-row"></div>';
+  const row = box.querySelector(".chat-suggestion-row");
+  for (const a of actions) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chat-suggestion-btn";
+    btn.textContent = a.label;
+    btn.onclick = () => applySuggestedAction(a);
+    row.appendChild(btn);
+  }
+}
+
+async function applySuggestedAction(a) {
+  const kind = a.kind || "chat";
+  if (kind === "pane") {
+    setWorkspacePane(a.message === "code" ? "code" : a.message);
+    return;
+  }
+  if (kind === "link" && a.message) {
+    window.open(a.message, "_blank", "noopener");
+    return;
+  }
+  if (kind === "action") {
+    await runStageUiAction({ action: a.message, label: a.label });
+    return;
+  }
+  await sendAgentMessage(a.message || a.label);
+}
+
+async function sendAgentMessage(text) {
+  const msg = (text || "").trim();
+  if (!msg || (!currentProblemId && !currentContestSetId)) return;
+  await ensureSession();
+  appendChat("user", msg);
+  document.getElementById("chat-input").value = "";
+  showChatSuggestions([]);
+  const body = { message: msg };
+  if (currentProblemId) body.problem_id = currentProblemId;
+  if (currentContestSetId) body.contest_set_id = currentContestSetId;
+  const res = await api(`/api/sessions/${sessionId}/chat`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  appendChat("assistant", res.assistant.content, res.tools_used);
+  showChatSuggestions(res.suggested_actions || []);
+  await refreshPipeline();
+  await refreshAgentToolsPanel();
+  if (parseRoute().tab === "monitor") await loadEvents();
 }
 
 /* ── Settings ── */
@@ -980,7 +1413,7 @@ document.getElementById("btn-new-problem").onclick = async () => {
     body: JSON.stringify({ title, contest_style: style }),
   });
   await loadTree();
-  navigate(`/problem/${p.id}/pipeline`);
+  navigate(`/problem/${p.id}/workspace`);
 };
 
 document.getElementById("btn-new-contest-icpc").onclick = async () => {
@@ -1039,36 +1472,36 @@ document.getElementById("btn-slot-create").onclick = async () => {
     }
   );
   await loadTree();
-  navigate(`/problem/${p.id}/pipeline`);
-};
-
-document.getElementById("btn-goto-editor").onclick = () => {
-  if (currentProblemId) navigate(`/problem/${currentProblemId}/editor`);
-};
-document.getElementById("btn-goto-agent").onclick = () => {
-  if (currentProblemId) navigate(`/problem/${currentProblemId}/agent`);
+  navigate(`/problem/${p.id}/workspace`);
 };
 
 document.getElementById("btn-import-check").onclick = async () => {
   if (!currentProblemId) return;
   const job = await api(`/api/problems/${currentProblemId}/import/check`, { method: "POST" });
-  document.getElementById("run-verdict")?.textContent && (document.getElementById("run-verdict").textContent = "import_check…");
+  const verdictEl = document.getElementById("run-verdict");
+  if (verdictEl) verdictEl.textContent = "import_check…";
   const done = await pollJob(job.id);
-  alert(done.result_json?.ok ? `import_check 通过 ${done.result_json.rounds} 轮` : `失败: ${done.result_json?.reason}`);
+  const r = done.result_json || {};
+  const msg = r.ok
+    ? `import_check 通过 ${r.rounds ?? "?"} 轮`
+    : `失败: ${jobResultMessage(done)}`;
+  if (verdictEl) {
+    verdictEl.textContent = r.ok ? "OK" : jobResultMessage(done);
+    verdictEl.className = "verdict " + (r.ok ? "ok" : "fail");
+  }
+  const outEl = document.getElementById("run-output");
+  if (outEl) outEl.textContent = JSON.stringify(r, null, 2);
+  alert(msg);
   await refreshPipeline();
 };
 
 document.getElementById("btn-import-confirm").onclick = async () => {
   if (!currentProblemId) return;
-  if (!document.getElementById("import-confirm-box").checked) {
-    alert("请勾选确认");
-    return;
-  }
+  if (!confirm("确认已在原题平台提交或核对过该题？")) return;
+  const submission_url = prompt("提交链接（选填）", "") || null;
   await api(`/api/problems/${currentProblemId}/import/confirm-submission`, {
     method: "POST",
-    body: JSON.stringify({
-      submission_url: document.getElementById("import-submission-url").value || null,
-    }),
+    body: JSON.stringify({ submission_url }),
   });
   await refreshPipeline();
 };
@@ -1157,7 +1590,7 @@ document.getElementById("btn-approve").onclick = async () => {
     method: "POST",
     body: JSON.stringify({ note: document.getElementById("gate-note").value }),
   });
-  navigate(`/problem/${currentProblemId}/pipeline`);
+  navigate(`/problem/${currentProblemId}/workspace`);
 };
 
 document.getElementById("btn-dispatch").onclick = async () => {
@@ -1167,7 +1600,7 @@ document.getElementById("btn-dispatch").onclick = async () => {
     body: JSON.stringify({ stage_id: p.current_stage, reason: "web" }),
   });
   alert(out.dispatch.report?.summary || out.dispatch.hint || "已调度");
-  navigate(`/problem/${currentProblemId}/pipeline`);
+  navigate(`/problem/${currentProblemId}/workspace`);
 };
 
 document.getElementById("btn-interactive").onclick = async () => {
@@ -1330,26 +1763,12 @@ document.getElementById("btn-dispatch-package").onclick = async () => {
 };
 
 document.getElementById("btn-chat-send").onclick = async () => {
-  const text = document.getElementById("chat-input").value.trim();
-  if (!text || (!currentProblemId && !currentContestSetId)) return;
-  await ensureSession();
-  appendChat("user", text);
-  document.getElementById("chat-input").value = "";
-  const body = { message: text };
-  if (currentProblemId) body.problem_id = currentProblemId;
-  if (currentContestSetId) body.contest_set_id = currentContestSetId;
-  const res = await api(`/api/sessions/${sessionId}/chat`, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-  appendChat("assistant", res.assistant.content, res.tools_used);
-  await refreshStageTimeline("agent-stage-timeline");
-  await refreshAgentToolsPanel();
-  if (parseRoute().tab === "monitor") await loadEvents();
+  await sendAgentMessage(document.getElementById("chat-input").value);
 };
 
 document.getElementById("btn-agent-clear").onclick = () => {
   document.getElementById("chat-log").innerHTML = "";
+  showChatSuggestions([]);
   sessionId = null;
   refreshAgentToolsPanel();
 };
@@ -1381,7 +1800,7 @@ document.getElementById("btn-crawl-import").onclick = async () => {
   });
   alert(`已排队导入 job=${out.job.id}`);
   await loadTree();
-  navigate(`/problem/${out.problem.id}/pipeline`);
+  navigate(`/problem/${out.problem.id}/workspace`);
 };
 
 document.getElementById("btn-export-events").onclick = () => {
@@ -1412,11 +1831,47 @@ document.getElementById("btn-fetch-ac-std")?.addEventListener("click", async () 
 });
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "F9" && parseRoute().tab === "editor") {
+  if (e.key === "F9" && isWorkspaceRoute(parseRoute()) && activeWsPane === "code") {
     e.preventDefault();
     document.getElementById("btn-run").click();
   }
 });
+
+document.querySelectorAll("[data-ws-pane]").forEach((btn) => {
+  btn.addEventListener("click", () => setWorkspacePane(btn.dataset.wsPane));
+});
+
+document.getElementById("btn-reload-statement")?.addEventListener("click", () =>
+  loadMarkdownPane("statement")
+);
+document.getElementById("btn-reload-editorial")?.addEventListener("click", () =>
+  loadMarkdownPane("editorial")
+);
+document.getElementById("btn-save-statement")?.addEventListener("click", async () => {
+  try {
+    await saveMarkdownPane("statement");
+    alert("题面已保存");
+  } catch (e) {
+    alert(e.message || String(e));
+  }
+});
+document.getElementById("btn-save-editorial")?.addEventListener("click", async () => {
+  try {
+    await saveMarkdownPane("editorial");
+    alert("题解已保存");
+  } catch (e) {
+    alert(e.message || String(e));
+  }
+});
+
+const chatInputEl = document.getElementById("chat-input");
+if (chatInputEl) {
+  chatInputEl.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.shiftKey || e.isComposing) return;
+    e.preventDefault();
+    document.getElementById("btn-chat-send")?.click();
+  });
+}
 
 document.querySelectorAll("[data-nav]").forEach((a) => {
   a.addEventListener("click", (e) => {

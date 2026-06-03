@@ -1,0 +1,14 @@
+{
+  "terminal.integrated.env.linux": {
+    "DULIU_API": "http://localhost:8000",
+    "PYTHONPATH": "${workspaceFolder}/packages"
+  },
+  "terminal.integrated.env.osx": {
+    "DULIU_API": "http://localhost:8000",
+    "PYTHONPATH": "${workspaceFolder}/packages"
+  },
+  "files.associations": {
+    ".duliu/problems/**/statement.md": "markdown",
+    ".duliu/problems/**/editorial.md": "markdown"
+  }
+}

@@ -3,7 +3,7 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +25,7 @@ from duliu.api.schemas import (
     SlotBindRequest,
     SlotCreateRequest,
     SlotProblemBrief,
+    CreationWorkflowOut,
     ControlModeSet,
     DispatchRequest,
     EventOut,
@@ -57,6 +58,8 @@ from duliu.api.schemas import (
     StressRequest,
     TreeOut,
     WorkspaceOut,
+    WorkflowRunOut,
+    WorkflowRunRequest,
 )
 from duliu.config import settings
 from duliu.db.bootstrap import (
@@ -189,6 +192,7 @@ async def health():
         "milestone": "M21",
         "langgraph": settings.use_langgraph,
         "langgraph_checkpoint": checkpointer_mode(),
+        "langgraph_checkpoint_config": settings.langgraph_checkpoint,
         "monitor_transport": "websocket+sse",
         "stage_llm_enabled": settings.stage_llm_enabled,
         "session_tools_enabled": settings.session_tools_enabled,
@@ -206,7 +210,85 @@ async def health():
         "sse_poll_seconds": settings.sse_poll_seconds,
         "sandbox": sandbox_mode(),
         "isolate_available": isolate_available(),
+        "creation_workflows": True,
     }
+
+
+@app.get("/api/creation-workflows", response_model=list[CreationWorkflowOut])
+async def list_creation_workflows_route():
+    from duliu.workflows import list_workflows
+
+    return [CreationWorkflowOut(**w) for w in list_workflows()]
+
+
+@app.post("/api/creation-workflows/{workflow_id}/run", response_model=WorkflowRunOut)
+async def run_creation_workflow_route(
+    workflow_id: str,
+    body: WorkflowRunRequest,
+    problem_id: uuid.UUID | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    from duliu.workflows import run_creation_workflow
+    from duliu.workflows.registry import get_workflow
+
+    try:
+        get_workflow(workflow_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    problem = None
+    if problem_id:
+        problem = await db.get(Problem, problem_id)
+        if not problem:
+            raise HTTPException(404, "problem not found")
+    try:
+        result = await run_creation_workflow(
+            db, workflow_id, body.params, problem=problem
+        )
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return WorkflowRunOut(
+        ok=bool(result.get("ok", True)),
+        workflow=workflow_id,
+        summary=result.get("summary", ""),
+        artifact_kind=result.get("artifact_kind"),
+        report_preview=result.get("report_preview"),
+        result=result,
+    )
+
+
+@app.post("/api/problems/{problem_id}/creation-workflows/{workflow_id}/run", response_model=WorkflowRunOut)
+async def run_problem_creation_workflow_route(
+    problem_id: uuid.UUID,
+    workflow_id: str,
+    body: WorkflowRunRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    problem = await db.get(Problem, problem_id)
+    if not problem:
+        raise HTTPException(404, "problem not found")
+    from duliu.workflows import run_creation_workflow
+    from duliu.workflows.registry import get_workflow
+
+    try:
+        get_workflow(workflow_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    try:
+        result = await run_creation_workflow(
+            db, workflow_id, body.params, problem=problem
+        )
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return WorkflowRunOut(
+        ok=bool(result.get("ok", True)),
+        workflow=workflow_id,
+        summary=result.get("summary", ""),
+        artifact_kind=result.get("artifact_kind"),
+        report_preview=result.get("report_preview"),
+        result=result,
+    )
 
 
 @app.get("/")
@@ -575,15 +657,24 @@ async def list_stages(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db))
 
 @app.get("/api/runner/sandbox-status")
 async def sandbox_status():
+    import shutil
+
     from duliu.runner.sandbox import isolate_available, isolate_supports_interpreters, sandbox_mode
 
     iso = sandbox_mode() == "isolate"
+    gpp = shutil.which("g++")
+    py = shutil.which("python3") or shutil.which("python")
     return {
         "mode": sandbox_mode(),
         "isolate_available": isolate_available(),
         "use_isolate": settings.use_isolate,
         "cpp_via_isolate": iso,
         "python_java_via_isolate": iso and isolate_supports_interpreters(),
+        "gpp_path": gpp,
+        "gpp_available": bool(gpp),
+        "python3_available": bool(py),
+        "python_path": py,
+        "javac_available": bool(shutil.which("javac")),
     }
 
 
@@ -1309,11 +1400,17 @@ async def session_chat(
     user_msg, asst, tools = await SessionFacade.chat(
         db, chat, body.message, problem=problem, contest_set=contest_set
     )
+    from duliu.session.suggestions import build_suggested_actions
+
+    suggestions = await build_suggested_actions(
+        db, problem, contest_set, asst.content, tools
+    )
     await db.commit()
     return ChatResponse(
         user=MessageOut.model_validate(user_msg),
         assistant=MessageOut.model_validate(asst),
         tools_used=tools,
+        suggested_actions=suggestions,
     )
 
 

@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Duliu</title>
   <link rel="stylesheet" href="/assets/styles.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/editor.md@1.5.0/css/editormd.min.css" />
 </head>
 <body>
   <header class="gh-header">
@@ -13,9 +15,7 @@
       <nav class="gh-breadcrumb" id="breadcrumb"></nav>
     </div>
     <nav class="gh-header-nav" id="problem-subnav" hidden>
-      <a href="#" data-problem-tab="pipeline" class="gh-tab">流水线</a>
-      <a href="#" data-problem-tab="editor" class="gh-tab">编辑器</a>
-      <a href="#" data-problem-tab="agent" class="gh-tab gh-tab-primary">Agent</a>
+      <a href="#" data-problem-tab="workspace" class="gh-tab gh-tab-primary">工作区</a>
       <a href="#" data-problem-tab="monitor" class="gh-tab">监控</a>
     </nav>
     <div class="gh-header-right">
@@ -47,7 +47,7 @@
       <section id="view-home" class="view hidden">
         <div class="page-hero">
           <h1>工作区</h1>
-          <p class="muted">从左侧选择套题或单题。单题工作流：流水线 → 编辑器 / Agent。</p>
+          <p class="muted">从左侧选择套题或单题。单题进入统一工作区（流水线、编辑器、Agent）。</p>
           <div class="btn-row" style="margin-top:12px">
             <button type="button" class="btn-primary" id="btn-crawl-import">从 URL 导入非原创题</button>
           </div>
@@ -87,146 +87,152 @@
         </div>
       </section>
 
-      <!-- 流水线：阶段时间线 -->
-      <section id="view-pipeline" class="view hidden">
-        <div class="page-head compact">
-          <div>
-            <h1 id="pipeline-title">题目</h1>
-            <p class="muted">
-              当前 <strong id="pipeline-stage"></strong> ·
-              <span id="pipeline-style"></span> · 控制 <span id="pipeline-control"></span>
-              <span class="muted" id="polygon-upload-line"></span>
-            </p>
-          </div>
-          <div class="btn-row">
-            <button type="button" class="btn-primary" id="btn-dispatch">调度当前阶段</button>
-            <button type="button" class="btn-secondary" id="btn-approve">通过 Gate</button>
-          </div>
-        </div>
-        <div id="import-panel" class="card hidden">
-          <h2 class="card-title">非原创 · 原题与 import_check</h2>
-          <p class="muted" id="import-url"></p>
-          <p class="muted" id="import-status-line"></p>
-          <label class="gh-check">
-            <input type="checkbox" id="import-confirm-box" />
-            我已在原题平台提交或核对过该题
-          </label>
-          <input id="import-submission-url" class="gh-input" placeholder="提交链接（选填）" />
-          <div class="btn-row" style="margin-top:10px">
-            <button type="button" class="btn-secondary" id="btn-import-check">运行 import_check</button>
-            <button type="button" class="btn-secondary" id="btn-fetch-ac-std">拉取 CF AC 标程</button>
-            <button type="button" class="btn-primary" id="btn-import-confirm">保存提交确认</button>
-            <a id="import-open-url" class="btn-ghost" target="_blank" rel="noopener">打开原题</a>
-          </div>
-        </div>
-        <div class="pipeline-layout">
-          <div class="card stage-timeline-card">
-            <h2 class="card-title">阶段进度</h2>
-            <ol id="stage-timeline" class="stage-timeline"></ol>
-          </div>
-          <div class="card">
-            <h2 class="card-title">LangGraph Checkpoint</h2>
-            <ul id="pipeline-lg-history" class="lg-history"></ul>
-            <p class="muted" id="pipeline-lg-meta"></p>
-          </div>
-          <div class="card">
-            <h2 class="card-title">Gate 备注</h2>
-            <input id="gate-note" class="gh-input" placeholder="通过阶段时的备注（可选）" />
-            <div class="btn-row" style="margin-top:12px">
-              <button type="button" class="btn-secondary" id="btn-goto-editor">打开编辑器</button>
-              <button type="button" class="btn-primary" id="btn-goto-agent">打开 Agent</button>
+      <!-- 单题工作区：流水线 + 编辑器 + Agent 合一 -->
+      <section id="view-workspace" class="view hidden view-workspace-full">
+        <div class="workspace-shell">
+          <div class="workspace-main">
+            <div class="workspace-head">
+              <div class="workspace-head-text">
+                <h1 id="pipeline-title">题目</h1>
+                <p class="muted">
+                  当前 <strong id="pipeline-stage"></strong> ·
+                  <span id="pipeline-style"></span> · 控制 <span id="pipeline-control"></span>
+                  <span class="muted" id="polygon-upload-line"></span>
+                </p>
+                <p class="muted" id="runner-env-hint"></p>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn-primary" id="btn-dispatch">调度当前阶段</button>
+                <button type="button" class="btn-secondary" id="btn-approve">通过 Gate</button>
+              </div>
+            </div>
+            <div id="stage-actions-bar" class="stage-actions-bar card hidden"></div>
+            <div class="stage-timeline-h-wrap card">
+              <ol id="stage-timeline" class="stage-timeline stage-timeline-h"></ol>
+            </div>
+            <div class="workspace-center card">
+              <div class="workspace-pane-tabs" role="tablist">
+                <button type="button" class="ws-tab active" data-ws-pane="code">代码</button>
+                <button type="button" class="ws-tab ws-tab-stmt" data-ws-pane="statement">题面</button>
+                <button type="button" class="ws-tab ws-tab-ed" data-ws-pane="editorial">题解</button>
+              </div>
+              <div class="workspace-pane-stack">
+              <div id="ws-pane-code" class="ws-pane active ws-pane-code-layout">
+                <div class="editor-toolbar">
+                  <div class="editor-tabs">
+                    <select id="artifact-kind" class="gh-select gh-select-sm" title="工件"></select>
+                    <select id="artifact-language" class="gh-select gh-select-sm" title="语言">
+                      <option value="cpp">C++</option>
+                      <option value="python">Python</option>
+                      <option value="java">Java</option>
+                    </select>
+                  </div>
+                  <div class="editor-actions">
+                    <select id="run-program" class="gh-select gh-select-sm">
+                      <option value="std">标程 std</option>
+                      <option value="brute">暴力 brute</option>
+                      <option value="checker">checker</option>
+                    </select>
+                    <label class="gh-check"><input type="checkbox" id="use-draft" checked /> 草稿</label>
+                    <label class="gh-check"><input type="checkbox" id="use-checker" /> SPJ</label>
+                    <button type="button" class="btn-secondary btn-sm" id="btn-save">保存</button>
+                    <button type="button" class="btn-secondary btn-sm" id="btn-compile">编译</button>
+                    <button type="button" class="btn-run" id="btn-run">▶ 运行 (F9)</button>
+                    <details class="more-menu">
+                      <summary class="btn-ghost btn-sm">更多</summary>
+                      <div class="more-dropdown">
+                        <button type="button" id="btn-compare">对比运行</button>
+                        <button type="button" id="btn-stress-quick">快速对拍</button>
+                        <button type="button" id="btn-interactive">交互运行</button>
+                        <button type="button" id="btn-load-sample">加载样例</button>
+                        <button type="button" id="btn-restore-artifact">恢复历史版本</button>
+                        <button type="button" id="btn-polygon-zip">Polygon zip</button>
+                        <button type="button" id="btn-polygon-prepare">准备 Polygon 上传</button>
+                        <button type="button" class="btn-secondary" id="btn-polygon-attempt">Polygon 探活</button>
+                        <button type="button" class="btn-secondary" id="btn-polygon-auto">Polygon 自动上传</button>
+                        <button type="button" class="btn-secondary" id="btn-polygon-api-sync">Polygon API 同步</button>
+                        <button type="button" class="btn-secondary" id="btn-polygon-api-build">Polygon buildPackage</button>
+                        <button type="button" class="btn-secondary" id="btn-polygon-api-download">Polygon 下载包</button>
+                        <button type="button" class="btn-secondary" id="btn-package-sync">题包双向同步</button>
+                        <button type="button" class="btn-secondary" id="btn-stress-interpret">对拍解读</button>
+                        <button type="button" class="btn-secondary" id="btn-polygon-import">导入 Polygon 包</button>
+                        <button type="button" class="btn-secondary" id="btn-counterexamples">反例列表</button>
+                        <button type="button" id="btn-dispatch-package">调度 PACKAGE</button>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+                <div id="monaco-editor" class="monaco-pane"></div>
+                <div class="console-row">
+                  <div class="console-pane">
+                    <div class="console-head">输入 <span class="muted">stdin</span></div>
+                    <textarea id="run-input" class="console-text" placeholder="标准输入…"></textarea>
+                    <div class="console-head sub">期望 <span class="muted">可选 · WA 对比</span></div>
+                    <textarea id="run-expected" class="console-text console-text-sm" placeholder="期望输出"></textarea>
+                  </div>
+                  <div class="console-pane">
+                    <div class="console-head">输出 <span class="muted">stdout</span></div>
+                    <pre id="run-stdout" class="console-output"></pre>
+                  </div>
+                  <div class="console-pane">
+                    <div class="console-head">结果 <span id="run-verdict" class="verdict"></span></div>
+                    <pre id="run-output" class="console-output"></pre>
+                  </div>
+                </div>
+              </div>
+              <div id="ws-pane-statement" class="ws-pane ws-pane-editormd">
+                <div class="md-pane-toolbar">
+                  <span class="muted md-pane-hint">Editor.md · 支持 LaTeX / GFM</span>
+                  <button type="button" class="btn-secondary btn-sm" id="btn-reload-statement">刷新</button>
+                  <button type="button" class="btn-secondary btn-sm" id="btn-save-statement">保存题面</button>
+                </div>
+                <div id="editormd-statement" class="editormd-host">
+                  <textarea id="editormd-statement-src" style="display:none;"></textarea>
+                </div>
+              </div>
+              <div id="ws-pane-editorial" class="ws-pane ws-pane-editormd">
+                <div class="md-pane-toolbar">
+                  <span class="muted md-pane-hint">Editor.md · 支持 LaTeX / GFM</span>
+                  <button type="button" class="btn-secondary btn-sm" id="btn-reload-editorial">刷新</button>
+                  <button type="button" class="btn-secondary btn-sm" id="btn-save-editorial">保存题解</button>
+                </div>
+                <div id="editormd-editorial" class="editormd-host">
+                  <textarea id="editormd-editorial-src" style="display:none;"></textarea>
+                </div>
+              </div>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      <!-- 编辑器（参考在线 IDE 布局） -->
-      <section id="view-editor" class="view hidden view-editor-full">
-        <div class="editor-toolbar">
-          <div class="editor-tabs">
-            <select id="artifact-kind" class="gh-select gh-select-sm" title="工件"></select>
-            <select id="artifact-language" class="gh-select gh-select-sm" title="语言">
-              <option value="cpp">C++</option>
-              <option value="python">Python</option>
-              <option value="java">Java</option>
-            </select>
-          </div>
-          <div class="editor-actions">
-            <select id="run-program" class="gh-select gh-select-sm">
-              <option value="std">标程 std</option>
-              <option value="brute">暴力 brute</option>
-              <option value="checker">checker</option>
-            </select>
-            <label class="gh-check"><input type="checkbox" id="use-draft" /> 草稿</label>
-            <label class="gh-check"><input type="checkbox" id="use-checker" /> SPJ</label>
-            <button type="button" class="btn-secondary btn-sm" id="btn-save">保存</button>
-            <button type="button" class="btn-secondary btn-sm" id="btn-compile">编译</button>
-            <button type="button" class="btn-run" id="btn-run">▶ 运行 (F9)</button>
-            <details class="more-menu">
-              <summary class="btn-ghost btn-sm">更多</summary>
-              <div class="more-dropdown">
-                <button type="button" id="btn-compare">对比运行</button>
-                <button type="button" id="btn-stress-quick">快速对拍</button>
-                <button type="button" id="btn-interactive">交互运行</button>
-                <button type="button" id="btn-load-sample">加载样例</button>
-                <button type="button" id="btn-restore-artifact">恢复历史版本</button>
-                <button type="button" id="btn-polygon-zip">Polygon zip</button>
-                <button type="button" id="btn-polygon-prepare">准备 Polygon 上传</button>
-                <button type="button" class="btn-secondary" id="btn-polygon-attempt">Polygon 探活</button>
-                <button type="button" class="btn-secondary" id="btn-polygon-auto">Polygon 自动上传</button>
-                <button type="button" class="btn-secondary" id="btn-polygon-api-sync">Polygon API 同步</button>
-                <button type="button" class="btn-secondary" id="btn-polygon-api-build">Polygon buildPackage</button>
-                <button type="button" class="btn-secondary" id="btn-polygon-api-download">Polygon 下载包</button>
-                <button type="button" class="btn-secondary" id="btn-package-sync">题包双向同步</button>
-                <button type="button" class="btn-secondary" id="btn-stress-interpret">对拍解读</button>
-                <button type="button" class="btn-secondary" id="btn-polygon-import">导入 Polygon 包</button>
-                <button type="button" class="btn-secondary" id="btn-counterexamples">反例列表</button>
-                <button type="button" id="btn-dispatch-package">调度 PACKAGE</button>
+          <aside class="workspace-aside">
+            <div class="card workspace-agent-card">
+              <div class="workspace-agent-head">
+                <div>
+                  <h2 class="card-title" style="margin:0">Agent</h2>
+                  <p class="muted" id="agent-context">未选择题目标</p>
+                </div>
+                <button type="button" class="btn-ghost btn-sm" id="btn-agent-clear">清空</button>
               </div>
+              <div id="chat-log" class="chat-log chat-log-claude"></div>
+              <div id="chat-suggestions" class="chat-suggestions hidden"></div>
+              <div class="chat-compose chat-compose-claude">
+                <textarea id="chat-input" rows="2" placeholder="描述你想做的操作…（Enter 发送，Shift+Enter 换行）"></textarea>
+                <button type="button" class="btn-primary" id="btn-chat-send">发送</button>
+              </div>
+            </div>
+            <details class="workspace-panel card" open>
+              <summary class="workspace-panel-title">流水线 · Checkpoint</summary>
+              <label class="gh-label">Gate 备注</label>
+              <input id="gate-note" class="gh-input" placeholder="通过阶段时的备注（可选）" />
+              <h3 class="card-title" style="margin-top:12px;font-size:13px">LangGraph Checkpoint</h3>
+              <ul id="pipeline-lg-history" class="lg-history"></ul>
+              <p class="muted" id="pipeline-lg-meta"></p>
             </details>
-          </div>
-        </div>
-        <div id="monaco-editor" class="monaco-pane"></div>
-        <div class="console-split">
-          <div class="console-pane">
-            <div class="console-head">输入 <span class="muted">可选</span></div>
-            <textarea id="run-input" class="console-text" placeholder="标准输入…"></textarea>
-            <div class="console-head sub">期望输出 <span class="muted">可选</span></div>
-            <textarea id="run-expected" class="console-text console-text-sm" placeholder="用于 AC/WA 比较"></textarea>
-          </div>
-          <div class="console-pane">
-            <div class="console-head">结果 <span id="run-verdict" class="verdict"></span></div>
-            <pre id="run-output" class="console-output"></pre>
-          </div>
-        </div>
-      </section>
-
-      <!-- Session Agent（独立全页） -->
-      <section id="view-agent" class="view hidden">
-        <div class="agent-layout">
-          <div class="agent-main card">
-            <div class="page-head compact">
-              <div>
-                <h1>Session Agent</h1>
-                <p class="muted" id="agent-context">未选择题目标</p>
-              </div>
-              <button type="button" class="btn-ghost btn-sm" id="btn-agent-clear">清空对话</button>
-            </div>
-            <div class="agent-chips" id="agent-chips"></div>
-            <div id="chat-log" class="chat-log"></div>
-            <div class="chat-compose">
-              <textarea id="chat-input" rows="3" placeholder="例如：dispatch STRESS · approve SPEC · 对拍 · 套题状态"></textarea>
-              <button type="button" class="btn-primary" id="btn-chat-send">发送</button>
-            </div>
-          </div>
-          <aside class="agent-side card">
-            <h2 class="card-title">工具面板</h2>
-            <ul id="agent-tool-list" class="tool-list"></ul>
-            <h2 class="card-title" style="margin-top:14px">最近调用</h2>
-            <ul id="agent-tool-history" class="tool-history"></ul>
-            <h2 class="card-title" style="margin-top:14px">阶段快照</h2>
-            <ol id="agent-stage-timeline" class="stage-timeline stage-timeline-compact"></ol>
-            <p class="muted" style="margin-top:12px;font-size:12px">每 5 秒自动刷新</p>
+            <details class="workspace-panel card">
+              <summary class="workspace-panel-title">工具</summary>
+              <ul id="agent-tool-list" class="tool-list"></ul>
+              <h3 class="card-title" style="margin-top:10px;font-size:13px">最近调用</h3>
+              <ul id="agent-tool-history" class="tool-history"></ul>
+            </details>
           </aside>
         </div>
       </section>
@@ -313,8 +319,18 @@
       </section>
     </main>
   </div>
+  <div id="workspace-action-hooks" class="hidden" aria-hidden="true">
+    <button type="button" id="btn-import-check"></button>
+    <button type="button" id="btn-fetch-ac-std"></button>
+    <button type="button" id="btn-import-confirm"></button>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs/loader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/editor.md@1.5.0/editormd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@14.1.3/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
   <script src="/assets/app.js"></script>
 </body>
 </html>

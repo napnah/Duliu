@@ -186,6 +186,44 @@ SESSION_TOOL_SCHEMAS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "run_creation_workflow",
+            "description": (
+                "运行五步出题流程之一：find_problem（找题）、write_statement（题面）、"
+                "solution_analysis（解法/部分分）、generate_data（造数据）、write_editorial（题解）"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "workflow_id": {
+                        "type": "string",
+                        "enum": [
+                            "find_problem",
+                            "write_statement",
+                            "solution_analysis",
+                            "generate_data",
+                            "write_editorial",
+                        ],
+                    },
+                    "params": {
+                        "type": "object",
+                        "description": "如 difficulty、topics、style(codeforces|noip)、contest_style(OI|ICPC)",
+                    },
+                },
+                "required": ["workflow_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_creation_workflows",
+            "description": "列出五步出题流程及触发词",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "langgraph_history",
             "description": "查询题目或套题的 LangGraph checkpoint 历史",
             "parameters": {
@@ -418,6 +456,34 @@ async def execute_session_tool(
             },
             ensure_ascii=False,
         )
+
+    if name == "list_creation_workflows":
+        from duliu.workflows import list_workflows
+
+        return json.dumps(list_workflows(), ensure_ascii=False)
+
+    if name == "run_creation_workflow":
+        from duliu.workflows import run_creation_workflow
+        from duliu.workflows.registry import get_workflow
+
+        wid = (args.get("workflow_id") or "").strip()
+        try:
+            meta = get_workflow(wid)
+        except ValueError as e:
+            return json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False)
+        if meta.requires_problem and not problem:
+            return json.dumps(
+                {"ok": False, "error": f"{wid} 需要题目上下文，请先绑定 problem_id"},
+                ensure_ascii=False,
+            )
+        try:
+            result = await run_creation_workflow(
+                session, wid, args.get("params") or {}, problem=problem
+            )
+            await session.flush()
+            return json.dumps(result, ensure_ascii=False)
+        except ValueError as e:
+            return json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False)
 
     if name == "langgraph_history":
         from duliu.config import settings as cfg

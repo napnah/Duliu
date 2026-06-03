@@ -222,10 +222,39 @@ class MessageOut(BaseModel):
         from_attributes = True
 
 
+class CreationWorkflowOut(BaseModel):
+    id: str
+    name_zh: str
+    summary: str
+    requires_problem: bool
+    chat_triggers: list[str] = Field(default_factory=list)
+
+
+class WorkflowRunRequest(BaseModel):
+    params: dict = Field(default_factory=dict)
+
+
+class WorkflowRunOut(BaseModel):
+    ok: bool
+    workflow: str
+    summary: str = ""
+    artifact_kind: str | None = None
+    report_preview: str | None = None
+    result: dict = Field(default_factory=dict)
+
+
+class SuggestedActionOut(BaseModel):
+    id: str
+    label: str
+    message: str = ""
+    kind: str = "chat"
+
+
 class ChatResponse(BaseModel):
     user: MessageOut
     assistant: MessageOut
     tools_used: list[dict] = Field(default_factory=list)
+    suggested_actions: list[SuggestedActionOut] = Field(default_factory=list)
 
 
 class SecretSet(BaseModel):

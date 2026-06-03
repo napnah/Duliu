@@ -9,8 +9,14 @@ venv/
 
 # IDE
 .idea/
-.vscode/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/settings.json
 *.swp
+
+# Duliu local IDE mirror
+.duliu/active.json
+.duliu/problems/
 
 # Duliu runtime (future)
 .sessions/

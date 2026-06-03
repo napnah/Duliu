@@ -1,0 +1,76 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Duliu: Health",
+      "type": "shell",
+      "command": "python -m duliu.cli health",
+      "options": { "env": { "PYTHONPATH": "${workspaceFolder}/packages" } },
+      "problemMatcher": []
+    },
+    {
+      "label": "Duliu: Tree",
+      "type": "shell",
+      "command": "python -m duliu.cli tree",
+      "options": { "env": { "PYTHONPATH": "${workspaceFolder}/packages" } },
+      "problemMatcher": []
+    },
+    {
+      "label": "Duliu: Pull Active Problem",
+      "type": "shell",
+      "command": "python -m duliu.cli pull",
+      "options": { "env": { "PYTHONPATH": "${workspaceFolder}/packages" } },
+      "problemMatcher": []
+    },
+    {
+      "label": "Duliu: Push Active Problem",
+      "type": "shell",
+      "command": "python -m duliu.cli push",
+      "options": { "env": { "PYTHONPATH": "${workspaceFolder}/packages" } },
+      "problemMatcher": []
+    },
+    {
+      "label": "Duliu: Status",
+      "type": "shell",
+      "command": "python -m duliu.cli status",
+      "options": { "env": { "PYTHONPATH": "${workspaceFolder}/packages" } },
+      "problemMatcher": []
+    },
+    {
+      "label": "Duliu: Dispatch Current Stage",
+      "type": "shell",
+      "command": "python -m duliu.cli dispatch",
+      "options": { "env": { "PYTHONPATH": "${workspaceFolder}/packages" } },
+      "problemMatcher": []
+    },
+    {
+      "label": "Duliu: Approve Current Stage",
+      "type": "shell",
+      "command": "python -m duliu.cli approve",
+      "options": { "env": { "PYTHONPATH": "${workspaceFolder}/packages" } },
+      "problemMatcher": []
+    },
+    {
+      "label": "Duliu: Run std (input 1 2)",
+      "type": "shell",
+      "command": "python -m duliu.cli run --draft --input \"1 2\\n\" --wait",
+      "options": { "env": { "PYTHONPATH": "${workspaceFolder}/packages" } },
+      "problemMatcher": []
+    },
+    {
+      "label": "Duliu: Watch Events",
+      "type": "shell",
+      "command": "python -m duliu.cli watch",
+      "options": { "env": { "PYTHONPATH": "${workspaceFolder}/packages" } },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Duliu: Chat REPL",
+      "type": "shell",
+      "command": "python -m duliu.cli chat-repl",
+      "options": { "env": { "PYTHONPATH": "${workspaceFolder}/packages" } },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -22,8 +22,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY packages ./packages
 COPY docs ./docs
 COPY docker/entrypoint-m1.sh /entrypoint.sh
+COPY docker/install-runner-deps.sh /install-runner-deps.sh
 ENV DULIU_DOCS_DIR=/app/docs
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh /install-runner-deps.sh
 
 ENV PYTHONPATH=/app/packages
 ENV DULIU_RUNNER_WORK_DIR=/tmp/duliu-runner

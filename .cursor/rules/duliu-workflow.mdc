@@ -1,0 +1,64 @@
+---
+description: Duliu 出题流水线 — 在 Cursor 中用 CLI+本地文件调试，不依赖 Web UI
+globs:
+  - ".duliu/**"
+  - "packages/duliu/**"
+  - "docs/**"
+alwaysApply: false
+---
+
+# Duliu IDE 工作流
+
+后端已通过 `docker compose -f docker-compose.m1.yml up -d` 运行时使用 **`DULIU_API=http://localhost:8000`**。
+
+## 你必须用的命令（不要猜 Web DOM）
+
+```bash
+export PYTHONPATH=$WORKSPACE/packages
+export DULIU_API=http://localhost:8000
+
+python -m duliu.cli health
+python -m duliu.cli tree
+python -m duliu.cli use <problem-uuid>      # 写入 .duliu/active.json
+python -m duliu.cli pull                    # API → .duliu/problems/<id>/
+python -m duliu.cli push                    # 本地文件 → API
+python -m duliu.cli status <uuid>
+python -m duliu.cli dispatch <uuid> --stage STRESS
+python -m duliu.cli approve <uuid> --stage STRESS
+python -m duliu.cli run --draft --input "..." --wait
+python -m duliu.cli compile --draft --wait
+python -m duliu.cli stress --mode quick --wait
+python -m duliu.cli import-check <uuid> --wait
+python -m duliu.cli watch
+python -m duliu.cli chat "消息" --problem-id <uuid>
+python -m duliu.cli chat-repl
+python -m duliu.cli workflow list
+python -m duliu.cli workflow run find_problem --difficulty 2200 --topics "dp"
+python -m duliu.cli workflow run write_statement --style codeforces
+python -m duliu.cli job <job-uuid> --wait
+```
+
+## 本地工件目录
+
+编辑 `.duliu/problems/<problem_id>/` 下文件后 **必须 `push`** 才会进入 Runner：
+
+- `statement.md` — 题面
+- `editorial.md` — 题解
+- `std.cpp` / `std.py` — 标程
+- `brute.cpp` — 暴力
+- `samples/1.in` `1.out` — 样例（pull 时导出，push 不自动写回 spec）
+
+## 推荐结对流程
+
+1. `pull` → 改 `std.cpp` 或 `statement.md`
+2. `push` → `run --draft --wait` 或 `stress --wait`
+3. 把 `job` 的 `result_json.verdict` / stdout 回报给用户
+4. 需要 Agent 建议时用 `chat`；阶段推进用 `dispatch` / `approve`
+
+## 禁止
+
+- 不要绕过 API 直接改数据库
+- 不要在未 `push` 时假设 Runner 能看到 IDE 里未保存的草稿（除非 `run --draft` 且指定本地文件）
+- 编译运行必须经 API Job + Runner（容器内 g++）
+
+完整说明见 `docs/ide-workflow.md`。五步出题见 `docs/problem-creation-workflow.md`（Agent 可说「找题」「写题面」等）。

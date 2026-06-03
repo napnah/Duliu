@@ -14,6 +14,7 @@
 | [schemas/](./schemas/) | `contest.yaml` / `spec.yaml` 结构说明 |
 | [docs/hitl-web.md](./docs/hitl-web.md) | **HITL 主规范**：Web + Session Agent |
 | [docs/hitl-cli.md](./docs/hitl-cli.md) | CLI 预留（CI/脚本） |
+| [docs/ide-workflow.md](./docs/ide-workflow.md) | **Cursor/VS Code 出题全流程（CLI + 本地工件）** |
 | [docs/data-model.md](./docs/data-model.md) | Postgres 三级树、单题隔离 |
 | [docs/polygon.md](./docs/polygon.md) | Polygon 平台与题包结构 |
 | [docs/architecture-runtime.md](./docs/architecture-runtime.md) | **运行架构**：监控、Session、Facade、Worker |

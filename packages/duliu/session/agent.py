@@ -63,6 +63,8 @@ class SessionAgent:
                 "content": (
                     "你是 Duliu Session Agent。用中文简洁回复。"
                     "需要操作时调用工具，不要编造 job_id。"
+                    "五步出题：找题 find_problem、题面 write_statement、解法 solution_analysis、"
+                    "数据 generate_data、题解 write_editorial — 用 run_creation_workflow。"
                     f" 上下文: {ctx}"
                 ),
             },
@@ -119,6 +121,28 @@ class SessionAgent:
         contest_set: ContestSet | None,
         tools_used: list[dict],
     ) -> tuple[str, list[dict]]:
+        from duliu.workflows import run_creation_workflow
+        from duliu.workflows.intent import detect_workflow_from_text, parse_workflow_params
+        from duliu.workflows.registry import get_workflow
+
+        wid = detect_workflow_from_text(text)
+        if wid:
+            meta = get_workflow(wid)
+            if not meta.requires_problem or problem:
+                params = parse_workflow_params(text, wid)
+                try:
+                    result = await run_creation_workflow(
+                        session, wid, params, problem=problem
+                    )
+                    tools_used.append({"tool": "run_creation_workflow", "workflow": wid, "result": result})
+                    preview = (result.get("report_preview") or result.get("summary") or "")[:1200]
+                    return (
+                        f"【{meta.name_zh}】{result.get('summary', '完成')}\n\n{preview}".strip(),
+                        tools_used,
+                    )
+                except ValueError as e:
+                    return (f"工作流失败: {e}", tools_used)
+
         if contest_set and re.search(r"(套题评估|set\s*eval|evaluate\s*set)", text, re.I):
             try:
                 report = await ContestFacade.evaluate_set(session, contest_set)
@@ -231,6 +255,8 @@ class SessionAgent:
 
         hints = [
             "我是 Duliu Session Agent。可尝试：",
+            "- 五步出题：找题 / 写题面 / 解法分析 / 生成数据 / 写题解",
+            "- workflow:find_problem 或 工作流:write_statement",
             "- dispatch STRESS / PACKAGE / EDITORIAL",
             "- approve STRESS — 通过某阶段 Gate",
             "- 对拍 / 状态 / 最近事件",
