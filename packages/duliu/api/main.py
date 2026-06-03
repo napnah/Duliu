@@ -125,6 +125,9 @@ async def lifespan(app: FastAPI):
         await seed_m4_demo_set(session, ws)
         await ensure_m6_import_stages(session)
         await seed_m6_non_original_demo(session, ws)
+        from duliu.db.secret_bootstrap import bootstrap_secrets_from_env
+
+        await bootstrap_secrets_from_env(session, ws)
         await session.commit()
     if settings.use_langgraph:
         try:
@@ -160,7 +163,7 @@ async def health():
 
     return {
         "status": "ok",
-        "milestone": "M10",
+        "milestone": "M11",
         "langgraph": settings.use_langgraph,
         "langgraph_checkpoint": checkpointer_mode(),
         "sse_poll_seconds": settings.sse_poll_seconds,
@@ -428,6 +431,8 @@ async def sandbox_status():
         "mode": sandbox_mode(),
         "isolate_available": isolate_available(),
         "use_isolate": settings.use_isolate,
+        "cpp_via_isolate": sandbox_mode() == "isolate",
+        "python_java_via_isolate": False,
     }
 
 

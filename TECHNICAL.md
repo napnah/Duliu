@@ -1,7 +1,7 @@
 # Duliu 技术说明
 
 > 本文档从技术层面描述 Duliu 系统架构、实现现状与关键技术栈，并附各技术的前置背景知识索引。  
-> 对应规划见 [PLAN.md](./PLAN.md)；里程碑见 [docs/M1-COMPLETE.md](./docs/M1-COMPLETE.md) ~ [docs/M10-COMPLETE.md](./docs/M10-COMPLETE.md)。
+> 对应规划见 [PLAN.md](./PLAN.md)；里程碑见 [docs/M1-COMPLETE.md](./docs/M1-COMPLETE.md) ~ [docs/M11-COMPLETE.md](./docs/M11-COMPLETE.md)。
 
 ---
 
@@ -9,7 +9,7 @@
 
 Duliu 是一套**人机协同（HITL）的算法竞赛出题平台**。技术目标是把「出题」拆成可编排、可验收、可审计的阶段流水线：Agent 或规则引擎负责生成/检查工件，人类在每个 **Gate** 闸口审批；验题侧通过 **Job Worker** 在 Linux 容器内编译运行 C++/Python/Java 程序，完成单点运行、对拍、SPJ 判题、交互题驱动等任务。
 
-**当前代码里程碑**：**M10 已实现**（M1–M4 基础流水线 → M5 爬虫 → M6 非原创 import → M7 LangGraph dispatch → M8 工件回退 → M9 沙箱探测 → **M10 Postgres checkpointer + SSE 监控 + CF AC 标程拉取**）。**Isolate 生产接入、完整多节点 LLM 阶段图、WebSocket** 仍在 M11+ 规划中。
+**当前代码里程碑**：**M11 已实现**（…M10 checkpointer/SSE/AC 标程 → **M11 C++ Runner 走 isolate（可选）+ `.env` Cookie 启动引导**）。**完整多节点 LLM 阶段图、Python/Java isolate、WebSocket** 仍在 M12+ 规划中。
 
 ---
 

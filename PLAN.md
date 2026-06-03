@@ -487,6 +487,7 @@ Duliu/
 | **M8** ✅ | 工件回退 + 监控分组 + Job retry | [docs/M8-COMPLETE.md](./docs/M8-COMPLETE.md) |
 | **M9** ✅ | Isolate 探测 + Worker/Crawler 分离 | [docs/M9-COMPLETE.md](./docs/M9-COMPLETE.md) |
 | **M10** ✅ | Postgres checkpointer + SSE + CF AC 标程 | [docs/M10-COMPLETE.md](./docs/M10-COMPLETE.md) |
+| **M11** ✅ | Isolate 接入 C++ Runner + `.env` Cookie 引导 | [docs/M11-COMPLETE.md](./docs/M11-COMPLETE.md) |
 
 ---
 

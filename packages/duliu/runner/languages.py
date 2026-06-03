@@ -79,56 +79,58 @@ def run_compiled(
         return RunResult(verdict="CE", exit_code=-1, time_ms=0, stdout="", stderr="", compile_log=comp.log)
 
     if lang in ("cpp", "c++"):
-        return _run_binary(comp.binary, input_data, time_ms, max_output_bytes, comp.log)
+        return _run_binary(
+            comp.binary, input_data, time_ms, max_output_bytes, comp.log, work_dir=work
+        )
 
     if lang == "python":
-        try:
-            proc = subprocess.run(
-                ["python3", str(comp.binary)],
-                input=input_data,
-                capture_output=True,
-                text=True,
-                timeout=max(time_ms / 1000.0, 0.1),
-                cwd=str(work),
-            )
-        except subprocess.TimeoutExpired:
-            return RunResult(verdict="TLE", exit_code=-1, time_ms=time_ms, stdout="", stderr="")
-        return _result_from_proc(proc, max_output_bytes, comp.log)
+        from duliu.runner.sandbox import run_subprocess
+
+        return run_subprocess(
+            ["python3", str(comp.binary)],
+            input_data,
+            time_ms,
+            max_output_bytes,
+            cwd=work,
+            compile_log=comp.log,
+        )
 
     if lang == "java":
-        try:
-            proc = subprocess.run(
-                ["java", "-cp", str(work), class_name],
-                input=input_data,
-                capture_output=True,
-                text=True,
-                timeout=max(time_ms / 1000.0, 0.1),
-                cwd=str(work),
-            )
-        except subprocess.TimeoutExpired:
-            return RunResult(verdict="TLE", exit_code=-1, time_ms=time_ms, stdout="", stderr="")
-        return _result_from_proc(proc, max_output_bytes, comp.log)
+        from duliu.runner.sandbox import run_subprocess
+
+        return run_subprocess(
+            ["java", "-cp", str(work), class_name],
+            input_data,
+            time_ms,
+            max_output_bytes,
+            cwd=work,
+            compile_log=comp.log,
+        )
 
     return RunResult(verdict="CE", exit_code=-1, time_ms=0, stdout="", stderr="", compile_log="bad_lang")
 
 
 def _run_binary(
-    binary: Path, input_data: str, time_ms: int, max_output_bytes: int, compile_log: str
+    binary: Path,
+    input_data: str,
+    time_ms: int,
+    max_output_bytes: int,
+    compile_log: str,
+    *,
+    work_dir: Path | None = None,
 ) -> RunResult:
-    try:
-        proc = subprocess.run(
-            [str(binary)],
-            input=input_data,
-            capture_output=True,
-            text=True,
-            timeout=max(time_ms / 1000.0, 0.1),
-        )
-    except subprocess.TimeoutExpired as e:
-        out = (e.stdout or "") if isinstance(e.stdout, str) else (e.stdout or b"").decode(errors="replace")
-        err = (e.stderr or "") if isinstance(e.stderr, str) else (e.stderr or b"").decode(errors="replace")
-        return RunResult(verdict="TLE", exit_code=-1, time_ms=time_ms, stdout=out[:max_output_bytes], stderr=err)
-    r = _result_from_proc(proc, max_output_bytes, compile_log)
-    return r
+    from duliu.runner.sandbox import run_program_argv
+
+    wd = work_dir or binary.parent
+    return run_program_argv(
+        [binary.name],
+        wd,
+        input_data,
+        time_ms,
+        max_output_bytes,
+        compile_log=compile_log,
+        prefer_isolate=True,
+    )
 
 
 def _result_from_proc(proc: subprocess.CompletedProcess[str], max_output_bytes: int, compile_log: str) -> RunResult:
