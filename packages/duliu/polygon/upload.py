@@ -74,3 +74,80 @@ async def prepare_polygon_upload(
     )
     await session.flush()
     return {**report, "upload": upload_meta}
+
+
+async def attempt_polygon_upload(
+    session: AsyncSession,
+    problem: Problem,
+    *,
+    workspace_id: uuid.UUID,
+) -> dict:
+    """M16: prepare package + probe Polygon session with stored cookie."""
+    import httpx
+
+    base_report = await prepare_polygon_upload(
+        session, problem, workspace_id=workspace_id, force_reexport=False
+    )
+    upload = dict((problem.spec_json or {}).get("polygon_upload") or {})
+    cookie = await get_workspace_secret(session, workspace_id, "crawler_polygon_cookie")
+
+    attempt = {
+        "attempted_at": datetime.now(timezone.utc).isoformat(),
+        "zip_path": upload.get("zip_path"),
+        "auto_upload_supported": False,
+    }
+
+    if not cookie:
+        attempt.update(
+            {
+                "ok": False,
+                "mode": "manual",
+                "reason": "polygon_cookie_not_configured",
+                "instructions": upload.get("instructions"),
+            }
+        )
+    else:
+        session_ok = False
+        status_code = 0
+        try:
+            async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+                r = await client.get(
+                    POLYGON_HOME,
+                    headers={"Cookie": cookie.strip()},
+                )
+                status_code = r.status_code
+                body = r.text[:5000]
+                session_ok = r.status_code == 200 and (
+                    "polygon" in body.lower() or "logout" in body.lower() or "Problems" in body
+                )
+        except Exception as exc:
+            attempt["probe_error"] = str(exc)
+
+        attempt.update(
+            {
+                "ok": session_ok,
+                "mode": "session_probe" if session_ok else "manual",
+                "http_status": status_code,
+                "session_valid": session_ok,
+                "upload_entry_url": f"{POLYGON_HOME}",
+                "instructions": (
+                    "Cookie 探活"
+                    + ("通过" if session_ok else "未确认")
+                    + "。请在 Polygon 网页手动上传 zip："
+                    + str(upload.get("zip_path") or "")
+                ),
+            }
+        )
+
+    upload["last_attempt"] = attempt
+    problem.spec_json = {**(problem.spec_json or {}), "polygon_upload": upload}
+    await emit_event(
+        session,
+        problem_id=problem.id,
+        type="polygon.upload_attempted",
+        message=attempt.get("instructions", "polygon upload attempt")[:200],
+        source="polygon",
+        payload=attempt,
+    )
+    await session.flush()
+    return {**base_report, "attempt": attempt, "upload": upload}

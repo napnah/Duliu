@@ -492,6 +492,7 @@ Duliu/
 | **M13** ✅ | Python/Java isolate + Polygon 上传准备 | [docs/M13-COMPLETE.md](./docs/M13-COMPLETE.md) |
 | **M14** ✅ | 阶段 LLM Agent + Job WebSocket 进度 | [docs/M14-COMPLETE.md](./docs/M14-COMPLETE.md) |
 | **M15** ✅ | STRESS Agent + Session Tool Calling | [docs/M15-COMPLETE.md](./docs/M15-COMPLETE.md) |
+| **M16** ✅ | IMPORT Agent + Polygon 探活 + 聊天 Tool UI | [docs/M16-COMPLETE.md](./docs/M16-COMPLETE.md) |
 
 ---
 

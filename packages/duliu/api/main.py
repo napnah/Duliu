@@ -164,12 +164,13 @@ async def health():
 
     return {
         "status": "ok",
-        "milestone": "M15",
+        "milestone": "M16",
         "langgraph": settings.use_langgraph,
         "langgraph_checkpoint": checkpointer_mode(),
         "monitor_transport": "websocket+sse",
         "stage_llm_enabled": settings.stage_llm_enabled,
         "session_tools_enabled": settings.session_tools_enabled,
+        "import_agent": True,
         "sse_poll_seconds": settings.sse_poll_seconds,
         "sandbox": sandbox_mode(),
         "isolate_available": isolate_available(),
@@ -381,6 +382,7 @@ async def list_stage_agents():
         "enabled": settings.stage_llm_enabled,
         "stages": sorted(STAGE_LLM_STAGES),
         "stress_agent": True,
+        "import_agent": True,
         "openai_configured": bool(settings.openai_api_key),
     }
 
@@ -902,6 +904,20 @@ async def polygon_upload_status(problem_id: uuid.UUID, db: AsyncSession = Depend
         raise HTTPException(404, "problem not found")
     meta = (p.spec_json or {}).get("polygon_upload") or {}
     return {"problem_id": str(problem_id), "upload": meta}
+
+
+@app.post("/api/problems/{problem_id}/polygon/attempt-upload")
+async def polygon_attempt_upload(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    from duliu.polygon.upload import attempt_polygon_upload
+
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    ws = await ensure_default_workspace(db)
+    report = await attempt_polygon_upload(db, p, workspace_id=ws.id)
+    await db.commit()
+    await db.refresh(p)
+    return {"problem_id": str(problem_id), "export": report, "attempt": report.get("attempt")}
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobOut)

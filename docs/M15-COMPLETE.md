@@ -22,6 +22,6 @@ STRESS 阶段 Agent + Session OpenAI Tool Calling。
 bash scripts/m15-smoke-test.sh
 ```
 
-## 仍待（M16+）
+## 后续
 
-- Polygon 网页自动上传、IMPORT LLM、完整 Tool registry UI
+- IMPORT Agent、Polygon 探活、聊天 Tool UI：见 [M16-COMPLETE.md](./M16-COMPLETE.md)

@@ -454,8 +454,10 @@ async function refreshPipeline() {
     impPanel.classList.remove("hidden");
     const imp = graph.import || {};
     document.getElementById("import-url").textContent = imp.problem_url || "（无 URL）";
+    const chk = imp.agent_checklist;
+    const chkHint = chk?.steps?.length ? ` · 清单 ${chk.steps.length} 项` : "";
     document.getElementById("import-status-line").textContent =
-      `导入: ${imp.status || "-"} · import_check: ${imp.import_check_ok ? "通过" : "未通过"} · 提交确认: ${imp.submission_confirmed ? "是" : "否"}`;
+      `导入: ${imp.status || "-"} · import_check: ${imp.import_check_ok ? "通过" : "未通过"} · 提交确认: ${imp.submission_confirmed ? "是" : "否"}${chkHint}`;
     const link = document.getElementById("import-open-url");
     if (imp.problem_url) link.href = imp.problem_url;
     document.getElementById("import-confirm-box").checked = !!imp.submission_confirmed;
@@ -712,12 +714,25 @@ async function ensureSession() {
   return sessionId;
 }
 
-function appendChat(role, text) {
+function appendChat(role, text, toolsUsed) {
   const log = document.getElementById("chat-log");
   const div = document.createElement("div");
   div.className = `chat-msg ${role}`;
-  div.textContent = role === "user" ? text : text;
+  div.textContent = text;
   log.appendChild(div);
+  if (role === "assistant" && toolsUsed && toolsUsed.length) {
+    const chips = document.createElement("div");
+    chips.className = "chat-tools";
+    for (const t of toolsUsed) {
+      const span = document.createElement("span");
+      span.className = "chat-tool-chip";
+      const name = t.tool || "tool";
+      span.textContent = t.args ? `${name}(${JSON.stringify(t.args).slice(0, 40)})` : name;
+      span.title = t.result ? String(t.result).slice(0, 200) : "";
+      chips.appendChild(span);
+    }
+    log.appendChild(chips);
+  }
   log.scrollTop = log.scrollHeight;
 }
 
@@ -1001,6 +1016,16 @@ document.getElementById("btn-polygon-zip").onclick = () => {
   window.open(`/api/problems/${currentProblemId}/polygon/export`, "_blank");
 };
 
+document.getElementById("btn-polygon-attempt")?.addEventListener("click", async () => {
+  if (!currentProblemId) return;
+  const out = await api(`/api/problems/${currentProblemId}/polygon/attempt-upload`, {
+    method: "POST",
+  });
+  const a = out.attempt || {};
+  alert(a.instructions || JSON.stringify(a, null, 2));
+  await refreshPipeline();
+});
+
 document.getElementById("btn-polygon-prepare")?.addEventListener("click", async () => {
   if (!currentProblemId) return;
   const out = await api(`/api/problems/${currentProblemId}/polygon/prepare-upload`, {
@@ -1034,7 +1059,7 @@ document.getElementById("btn-chat-send").onclick = async () => {
     method: "POST",
     body: JSON.stringify(body),
   });
-  appendChat("assistant", res.assistant.content);
+  appendChat("assistant", res.assistant.content, res.tools_used);
   await refreshStageTimeline("agent-stage-timeline");
   if (parseRoute().tab === "monitor") await loadEvents();
 };

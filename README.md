@@ -44,9 +44,9 @@
 
 实现按 [PLAN.md §16](./PLAN.md#16-实施路线图) 里程碑推进。
 
-## M7–M15 ✅ 已完成
+## M7–M16 ✅ 已完成
 
-- [M7](docs/M7-COMPLETE.md) … [M14](docs/M14-COMPLETE.md) · [M15 STRESS/Session Tools](docs/M15-COMPLETE.md)
+- [M7](docs/M7-COMPLETE.md) … [M15](docs/M15-COMPLETE.md) · [M16 IMPORT/Polygon UI](docs/M16-COMPLETE.md)
 
 ## M6 ✅ 已完成
 
