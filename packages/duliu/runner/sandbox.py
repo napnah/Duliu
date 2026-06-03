@@ -37,6 +37,39 @@ def _init_isolate_box(box_id: int) -> None:
     )
 
 
+def _isolate_dir_flags(shares: list[tuple[str, str, str]] | None) -> list[str]:
+    flags: list[str] = []
+    for host, box, mode in shares or []:
+        flags.extend(["-d", f"{host}:{box}:{mode}"])
+    return flags
+
+
+def _default_python_shares() -> list[tuple[str, str, str]]:
+    shares: list[tuple[str, str, str]] = []
+    py = shutil.which("python3") or "/usr/bin/python3"
+    py_path = Path(py)
+    if py_path.is_file():
+        shares.append((str(py_path.parent), str(py_path.parent), "maybe"))
+    for lib in ("/usr/lib", "/lib", "/lib64"):
+        if Path(lib).is_dir():
+            shares.append((lib, lib, "maybe"))
+    return shares
+
+
+def _default_java_shares() -> list[tuple[str, str, str]]:
+    shares: list[tuple[str, str, str]] = []
+    java = shutil.which("java")
+    if java:
+        shares.append((str(Path(java).parent), str(Path(java).parent), "maybe"))
+    jhome = os.environ.get("JAVA_HOME")
+    if jhome and Path(jhome).is_dir():
+        shares.append((jhome, jhome, "maybe"))
+    for lib in ("/usr/lib/jvm", "/usr/lib"):
+        if Path(lib).is_dir():
+            shares.append((lib, lib, "maybe"))
+    return shares
+
+
 def run_isolated(
     argv: list[str],
     work_dir: Path,
@@ -46,6 +79,7 @@ def run_isolated(
     *,
     box_id: int | None = None,
     compile_log: str = "",
+    shares: list[tuple[str, str, str]] | None = None,
 ) -> RunResult:
     """Run argv[0] under /box (paths relative to work_dir unless absolute /box/...)."""
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -78,6 +112,7 @@ def run_isolated(
         str(bid),
         "--dir",
         f"/box={work_dir}",
+        *_isolate_dir_flags(shares),
         "-t",
         str(time_sec),
         "-w",
@@ -205,10 +240,40 @@ def run_program_argv(
     *,
     compile_log: str = "",
     prefer_isolate: bool = True,
+    runtime: str = "binary",
 ) -> RunResult:
-    """Dispatch to isolate (C++ binary in work_dir) or subprocess."""
+    """Dispatch to isolate or subprocess. runtime: binary | python | java."""
     use_iso = prefer_isolate and sandbox_mode() == "isolate"
-    if use_iso and work_dir and argv and not Path(argv[0]).is_absolute():
-        return run_isolated(argv, work_dir, input_data, time_ms, max_output_bytes, compile_log=compile_log)
+    if use_iso and work_dir and argv:
+        if runtime == "binary" and not Path(argv[0]).is_absolute():
+            return run_isolated(argv, work_dir, input_data, time_ms, max_output_bytes, compile_log=compile_log)
+        if runtime == "python":
+            py = shutil.which("python3") or "/usr/bin/python3"
+            script = argv[0] if not Path(argv[0]).is_absolute() else Path(argv[0]).name
+            return run_isolated(
+                [py, script],
+                work_dir,
+                input_data,
+                time_ms,
+                max_output_bytes,
+                compile_log=compile_log,
+                shares=_default_python_shares(),
+            )
+        if runtime == "java":
+            java = shutil.which("java") or "java"
+            cls = argv[-1] if len(argv) >= 1 else "Main"
+            return run_isolated(
+                [java, "-cp", "/box", cls],
+                work_dir,
+                input_data,
+                time_ms,
+                max_output_bytes,
+                compile_log=compile_log,
+                shares=_default_java_shares(),
+            )
     abs_argv = [str(work_dir / argv[0]) if work_dir and not Path(argv[0]).is_absolute() else argv[0], *argv[1:]]
     return run_subprocess(abs_argv, input_data, time_ms, max_output_bytes, cwd=work_dir, compile_log=compile_log)
+
+
+def isolate_supports_interpreters() -> bool:
+    return isolate_available()

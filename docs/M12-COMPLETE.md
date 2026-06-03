@@ -18,7 +18,7 @@ WebSocket 监控通道 + LangGraph 三节点 dispatch 图（prepare → dispatch
 bash scripts/m12-smoke-test.sh
 ```
 
-## 仍待（M13+）
+## 后续
 
-- Python/Java isolate、LLM 阶段 Agent 真实现
-- Polygon 自动上传、Runner Job WebSocket 进度
+- Python/Java isolate、Polygon 准备：见 [M13-COMPLETE.md](./M13-COMPLETE.md)
+- 仍待 M14+：LLM 阶段 Agent、Runner Job WebSocket 进度

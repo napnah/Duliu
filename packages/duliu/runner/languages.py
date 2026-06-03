@@ -84,27 +84,29 @@ def run_compiled(
         )
 
     if lang == "python":
-        from duliu.runner.sandbox import run_subprocess
+        from duliu.runner.sandbox import run_program_argv
 
-        return run_subprocess(
-            ["python3", str(comp.binary)],
+        return run_program_argv(
+            [comp.binary.name],
+            work,
             input_data,
             time_ms,
             max_output_bytes,
-            cwd=work,
             compile_log=comp.log,
+            runtime="python",
         )
 
     if lang == "java":
-        from duliu.runner.sandbox import run_subprocess
+        from duliu.runner.sandbox import run_program_argv
 
-        return run_subprocess(
+        return run_program_argv(
             ["java", "-cp", str(work), class_name],
+            work,
             input_data,
             time_ms,
             max_output_bytes,
-            cwd=work,
             compile_log=comp.log,
+            runtime="java",
         )
 
     return RunResult(verdict="CE", exit_code=-1, time_ms=0, stdout="", stderr="", compile_log="bad_lang")

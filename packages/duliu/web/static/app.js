@@ -462,6 +462,18 @@ async function refreshPipeline() {
   } else {
     impPanel.classList.add("hidden");
   }
+  const polyLine = document.getElementById("polygon-upload-line");
+  if (polyLine) {
+    try {
+      const st = await api(`/api/problems/${currentProblemId}/polygon/upload-status`);
+      const u = st.upload || {};
+      polyLine.textContent = u.zip_path
+        ? ` · Polygon: ${u.ok ? "就绪" : "缺工件"} ${u.zip_path}`
+        : "";
+    } catch {
+      polyLine.textContent = "";
+    }
+  }
   renderGraphTimeline("stage-timeline", graph);
 }
 
@@ -947,6 +959,18 @@ document.getElementById("btn-restore-artifact").onclick = async () => {
 document.getElementById("btn-polygon-zip").onclick = () => {
   window.open(`/api/problems/${currentProblemId}/polygon/export`, "_blank");
 };
+
+document.getElementById("btn-polygon-prepare")?.addEventListener("click", async () => {
+  if (!currentProblemId) return;
+  const out = await api(`/api/problems/${currentProblemId}/polygon/prepare-upload`, {
+    method: "POST",
+  });
+  const u = out.upload || {};
+  alert(
+    `${u.instructions || "已准备"}\n\n路径: ${u.zip_path || "-"}\n打开: ${u.polygon_url || "https://polygon.codeforces.com/"}`
+  );
+  await refreshPipeline();
+});
 
 document.getElementById("btn-dispatch-package").onclick = async () => {
   const out = await api(`/api/problems/${currentProblemId}/dispatch`, {

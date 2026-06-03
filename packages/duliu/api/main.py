@@ -163,7 +163,7 @@ async def health():
 
     return {
         "status": "ok",
-        "milestone": "M12",
+        "milestone": "M13",
         "langgraph": settings.use_langgraph,
         "langgraph_checkpoint": checkpointer_mode(),
         "monitor_transport": "websocket+sse",
@@ -460,14 +460,15 @@ async def list_stages(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db))
 
 @app.get("/api/runner/sandbox-status")
 async def sandbox_status():
-    from duliu.runner.sandbox import isolate_available, sandbox_mode
+    from duliu.runner.sandbox import isolate_available, isolate_supports_interpreters, sandbox_mode
 
+    iso = sandbox_mode() == "isolate"
     return {
         "mode": sandbox_mode(),
         "isolate_available": isolate_available(),
         "use_isolate": settings.use_isolate,
-        "cpp_via_isolate": sandbox_mode() == "isolate",
-        "python_java_via_isolate": False,
+        "cpp_via_isolate": iso,
+        "python_java_via_isolate": iso and isolate_supports_interpreters(),
     }
 
 
@@ -846,6 +847,35 @@ async def polygon_export_job(problem_id: uuid.UUID, db: AsyncSession = Depends(g
     await db.commit()
     await db.refresh(job)
     return JobOut.model_validate(job)
+
+
+@app.post("/api/problems/{problem_id}/polygon/prepare-upload")
+async def polygon_prepare_upload(
+    problem_id: uuid.UUID,
+    force: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
+    from duliu.polygon.upload import prepare_polygon_upload
+
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    ws = await ensure_default_workspace(db)
+    report = await prepare_polygon_upload(
+        db, p, workspace_id=ws.id, force_reexport=force
+    )
+    await db.commit()
+    await db.refresh(p)
+    return {"problem_id": str(problem_id), "export": report, "upload": report.get("upload")}
+
+
+@app.get("/api/problems/{problem_id}/polygon/upload-status")
+async def polygon_upload_status(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    meta = (p.spec_json or {}).get("polygon_upload") or {}
+    return {"problem_id": str(problem_id), "upload": meta}
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobOut)

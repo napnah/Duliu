@@ -489,6 +489,7 @@ Duliu/
 | **M10** ✅ | Postgres checkpointer + SSE + CF AC 标程 | [docs/M10-COMPLETE.md](./docs/M10-COMPLETE.md) |
 | **M11** ✅ | Isolate 接入 C++ Runner + `.env` Cookie 引导 | [docs/M11-COMPLETE.md](./docs/M11-COMPLETE.md) |
 | **M12** ✅ | WebSocket 监控 + LangGraph 三节点 dispatch | [docs/M12-COMPLETE.md](./docs/M12-COMPLETE.md) |
+| **M13** ✅ | Python/Java isolate + Polygon 上传准备 | [docs/M13-COMPLETE.md](./docs/M13-COMPLETE.md) |
 
 ---
 
