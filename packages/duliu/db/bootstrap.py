@@ -538,12 +538,110 @@ async def seed_package_ready_problem(session: AsyncSession, workspace: Workspace
     return problem
 
 
+async def _bind_problem_to_slot(
+    session: AsyncSession,
+    cs: ContestSet,
+    slot_label: str,
+    problem: Problem,
+) -> None:
+    slot = (
+        await session.execute(
+            select(ContestSlot).where(
+                ContestSlot.contest_set_id == cs.id,
+                ContestSlot.slot_label == slot_label,
+            )
+        )
+    ).scalar_one()
+    slot.problem_id = problem.id
+    slot.status = "ASSIGNED"
+    problem.contest_set_id = cs.id
+
+
+async def seed_m4_demo_set(session: AsyncSession, workspace: Workspace) -> ContestSet | None:
+    result = await session.execute(
+        select(ContestSet).where(
+            ContestSet.workspace_id == workspace.id,
+            ContestSet.name == "M4 Demo ICPC Mini",
+        )
+    )
+    if result.scalar_one_or_none():
+        return None
+
+    cs = ContestSet(
+        workspace_id=workspace.id,
+        name="M4 Demo ICPC Mini",
+        contest_style="ICPC",
+        slot_count=4,
+        status="IN_PROGRESS",
+        target_difficulty_json={
+            "min_rating": 800,
+            "max_rating": 2200,
+            "distribution": [1000, 1400, 1800, 2200],
+        },
+    )
+    session.add(cs)
+    await session.flush()
+    for label in ["A", "B", "C", "D"]:
+        session.add(ContestSlot(contest_set_id=cs.id, slot_label=label, status="EMPTY"))
+    await session.flush()
+
+    configs = [
+        ("A", "M4 Set A Easy", 1000, "DONE"),
+        ("B", "M4 Set B Mid", 1400, "DONE"),
+        ("C", "M4 Set C Hard", 1800, "STRESS"),
+        ("D", "M4 Set D Expert", 2200, "SOLUTION"),
+    ]
+    for label, title, rating, stage in configs:
+        spec = {
+            "limits": {"time_ms": 1000, "memory_mb": 256},
+            "samples": [{"input": "1 2\n", "output": "3\n"}],
+            "difficulty": {"rating": rating, "model": "codeforces"},
+        }
+        cur = "DONE" if stage == "DONE" else stage
+        problem = Problem(
+            workspace_id=workspace.id,
+            contest_set_id=cs.id,
+            title=title,
+            originality="ORIGINAL",
+            problem_type="TRADITIONAL",
+            contest_style="ICPC",
+            current_stage=cur,
+            spec_json=spec,
+        )
+        session.add(problem)
+        await session.flush()
+        idx = len(M3_STAGE_ORDER) if cur == "DONE" else M3_STAGE_ORDER.index(stage)
+        for i, sid in enumerate(M3_STAGE_ORDER):
+            if cur == "DONE" or i < idx:
+                st = StageStatus.APPROVED.value
+            elif i == idx:
+                st = StageStatus.AWAITING_HUMAN.value
+            else:
+                st = StageStatus.PENDING.value
+            session.add(ProblemStage(problem_id=problem.id, stage_id=sid, status=st))
+        session.add(
+            Artifact(
+                problem_id=problem.id,
+                kind="std",
+                version=1,
+                content_text=SAMPLE_STD_CPP,
+                sha256=hashlib.sha256(SAMPLE_STD_CPP.encode()).hexdigest(),
+                author="seed",
+                language="cpp",
+            )
+        )
+        await _bind_problem_to_slot(session, cs, label, problem)
+    await session.flush()
+    return cs
+
+
 async def create_contest_set(
     session: AsyncSession,
     workspace: Workspace,
     name: str,
     contest_style: str = "ICPC",
     slot_count: int | None = None,
+    target_difficulty_json: dict | None = None,
 ) -> ContestSet:
     if slot_count is None:
         slot_count = 13 if contest_style == "ICPC" else contest_defaults("OI").get("problem_count", 4)
@@ -552,6 +650,7 @@ async def create_contest_set(
         name=name,
         contest_style=contest_style,
         slot_count=slot_count,
+        target_difficulty_json=target_difficulty_json or {},
     )
     session.add(cs)
     await session.flush()

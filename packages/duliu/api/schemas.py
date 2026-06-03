@@ -17,9 +17,52 @@ class ContestSetOut(BaseModel):
     name: str
     contest_style: str
     slot_count: int
+    status: str = "DRAFT"
+    target_difficulty_json: dict = Field(default_factory=dict)
 
     class Config:
         from_attributes = True
+
+
+class SlotProblemBrief(BaseModel):
+    id: uuid.UUID
+    title: str
+    current_stage: str
+    problem_type: str
+    spec_json: dict = Field(default_factory=dict)
+
+
+class ContestSlotOut(BaseModel):
+    id: uuid.UUID
+    slot_label: str
+    status: str
+    problem_id: uuid.UUID | None = None
+    problem: SlotProblemBrief | None = None
+
+
+class ContestSetDetailOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    contest_style: str
+    slot_count: int
+    status: str
+    target_difficulty_json: dict
+    set_eval_json: dict
+    slots: list[ContestSlotOut]
+
+
+class SlotBindRequest(BaseModel):
+    problem_id: uuid.UUID
+
+
+class SlotCreateRequest(BaseModel):
+    title: str
+    problem_type: str = "TRADITIONAL"
+    rating: int | None = None
+
+
+class SetEvalApprove(BaseModel):
+    note: str | None = None
 
 
 class ProblemOut(BaseModel):
@@ -142,6 +185,11 @@ class TreeOut(BaseModel):
     problems: list[ProblemOut]
 
 
+class ContestTreeNode(BaseModel):
+    contest_set: ContestSetOut
+    slots: list[ContestSlotOut]
+
+
 class SessionCreate(BaseModel):
     problem_id: uuid.UUID | None = None
     title: str = "Session"
@@ -160,6 +208,7 @@ class SessionOut(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     problem_id: uuid.UUID | None = None
+    contest_set_id: uuid.UUID | None = None
 
 
 class MessageOut(BaseModel):

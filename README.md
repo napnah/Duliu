@@ -43,6 +43,10 @@
 
 实现按 [PLAN.md §16](./PLAN.md#16-实施路线图) 里程碑推进。
 
+## M4 ✅ 已完成
+
+详见 [docs/M4-COMPLETE.md](./docs/M4-COMPLETE.md)。套题树、Set Evaluator、难度曲线仪表盘。
+
 ## M3 ✅ 已完成
 
 详见 [docs/M3-COMPLETE.md](./docs/M3-COMPLETE.md)。

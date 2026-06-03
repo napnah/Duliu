@@ -8,7 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from duliu.config import settings
-from duliu.db.models import Problem, ProblemStage, Session
+from duliu.db.models import ContestSet, Problem, ProblemStage, Session
+from duliu.facade.contest import ContestFacade
 from duliu.facade.jobs import JobFacade
 from duliu.facade.monitor import MonitorFacade
 from duliu.facade.pipeline import PipelineFacade
@@ -21,9 +22,49 @@ class SessionAgent:
         chat: Session,
         problem: Problem | None,
         user_text: str,
+        *,
+        contest_set: ContestSet | None = None,
     ) -> tuple[str, list[dict]]:
         tools_used: list[dict] = []
         text = user_text.strip()
+
+        if contest_set and re.search(r"(套题评估|set\s*eval|evaluate\s*set)", text, re.I):
+            try:
+                report = await ContestFacade.evaluate_set(session, contest_set)
+                tools_used.append({"tool": "set_evaluate", "ok": report.get("ok")})
+                return (
+                    f"{report['summary']}（filled={report['filled_slots']}, "
+                    f"curve_ok={report['curve_ok']}）",
+                    tools_used,
+                )
+            except ValueError as e:
+                return (f"套题评估失败: {e}", tools_used)
+
+        if contest_set and re.search(r"(通过套题|approve\s*set|set\s*approve)", text, re.I):
+            try:
+                await ContestFacade.approve_set_eval(session, contest_set, approved_by="session")
+                tools_used.append({"tool": "approve_set_eval"})
+                return (f"套题 {contest_set.name} 评估已通过，status=SET_EVAL_APPROVED", tools_used)
+            except ValueError as e:
+                return (f"套题 Gate 失败: {e}", tools_used)
+
+        if contest_set and re.search(r"(套题状态|contest\s*status)", text, re.I):
+            detail = await ContestFacade.get_detail(session, contest_set.id)
+            if not detail:
+                return ("套题不存在。", tools_used)
+            tools_used.append({"tool": "contest_status"})
+            lines = [
+                f"套题: {detail['name']} ({detail['contest_style']}) status={detail['status']}",
+                f"槽位: {detail['slot_count']}",
+            ]
+            for s in detail["slots"]:
+                t = s.get("problem", {}).get("title") if s.get("problem") else "(空)"
+                st = s.get("problem", {}).get("current_stage") if s.get("problem") else "-"
+                lines.append(f"  {s['slot_label']}: {t} [{st}]")
+            ev = detail.get("set_eval_json") or {}
+            if ev.get("summary"):
+                lines.append(f"最近评估: {ev['summary']}")
+            return ("\n".join(lines), tools_used)
 
         m_dispatch = re.search(
             r"(?:dispatch|调度)\s+(SPEC|STATEMENT|SOLUTION|GENERATOR|STRESS|ADVERSARIAL(?:_REVIEW)?|PACKAGE|EDITORIAL)",
@@ -87,15 +128,15 @@ class SessionAgent:
             if llm:
                 return (llm, tools_used)
 
-        return (
-            "我是 Duliu Session Agent（M2）。可尝试：\n"
-            "- dispatch ADVERSARIAL_REVIEW / PACKAGE / EDITORIAL\n"
-            "- dispatch PACKAGE — 生成 Polygon 题包\n"
-            "- approve STRESS — 通过某阶段 Gate\n"
-            "- 对拍 / 状态 / 最近事件\n"
-            "阶段 Agent 日志见下方监控。",
-            tools_used,
-        )
+        hints = [
+            "我是 Duliu Session Agent。可尝试：",
+            "- dispatch ADVERSARIAL_REVIEW / PACKAGE / EDITORIAL",
+            "- approve STRESS — 通过某阶段 Gate",
+            "- 对拍 / 状态 / 最近事件",
+        ]
+        if contest_set:
+            hints.extend(["- 套题评估 / 通过套题 / 套题状态（套题上下文）"])
+        return ("\n".join(hints), tools_used)
 
     async def _try_openai(self, problem: Problem, text: str) -> str | None:
         import httpx

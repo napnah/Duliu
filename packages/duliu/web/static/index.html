@@ -3,100 +3,226 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Duliu M3</title>
+  <title>Duliu</title>
   <link rel="stylesheet" href="/assets/styles.css" />
 </head>
 <body>
-  <header class="top">
-    <h1>Duliu</h1>
-    <span class="badge">M3</span>
-    <button id="btn-refresh">刷新</button>
-    <button id="btn-new-problem">新建单题</button>
-    <button id="btn-new-contest-icpc">新建 ICPC 套题</button>
-    <button id="btn-new-contest-oi">新建 OI 套题</button>
-    <button id="btn-settings">密钥</button>
+  <header class="gh-header">
+    <div class="gh-header-left">
+      <a href="#/home" class="gh-logo" data-nav>◆ Duliu</a>
+      <nav class="gh-breadcrumb" id="breadcrumb"></nav>
+    </div>
+    <nav class="gh-header-nav" id="problem-subnav" hidden>
+      <a href="#" data-problem-tab="pipeline" class="gh-tab">流水线</a>
+      <a href="#" data-problem-tab="editor" class="gh-tab">编辑器</a>
+      <a href="#" data-problem-tab="agent" class="gh-tab gh-tab-primary">Agent</a>
+      <a href="#" data-problem-tab="monitor" class="gh-tab">监控</a>
+    </nav>
+    <div class="gh-header-right">
+      <button type="button" class="btn-ghost" id="btn-sidebar-toggle" title="侧栏">☰</button>
+      <a href="#/settings" class="btn-ghost" data-nav>设置</a>
+    </div>
   </header>
-  <div class="layout layout-m2">
-    <aside class="sidebar">
-      <h2>导航</h2>
-      <div id="tree-workspace" class="muted"></div>
-      <h3 class="muted">套题</h3>
-      <ul id="tree-contests" class="tree-sub"></ul>
-      <h3 class="muted">单题</h3>
-      <ul id="tree-problems"></ul>
+
+  <div class="app-shell" id="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-head">
+        <span class="sidebar-title">工作区</span>
+        <button type="button" class="btn-ghost btn-sm" id="btn-refresh" title="刷新树">↻</button>
+      </div>
+      <p id="tree-workspace" class="muted sidebar-meta"></p>
+      <div class="sidebar-actions">
+        <button type="button" class="btn-secondary btn-sm" id="btn-new-problem">+ 单题</button>
+        <button type="button" class="btn-secondary btn-sm" id="btn-new-contest-icpc">+ ICPC</button>
+        <button type="button" class="btn-secondary btn-sm" id="btn-new-contest-oi">+ OI</button>
+      </div>
+      <h3 class="sidebar-label">套题</h3>
+      <ul id="tree-contests" class="tree"></ul>
+      <h3 class="sidebar-label">单题</h3>
+      <ul id="tree-problems" class="tree"></ul>
     </aside>
-    <main class="main">
-      <section id="problem-meta" class="card hidden">
-        <h2 id="problem-title"></h2>
-        <p>阶段: <strong id="problem-stage"></strong> · 风格: <span id="problem-style"></span> · 控制: <span id="problem-control"></span></p>
-        <div id="stages-bar" class="stages"></div>
-        <div class="gate-actions">
-          <button id="btn-approve">通过当前阶段</button>
-          <button id="btn-dispatch">调度当前阶段 Agent</button>
-          <input id="gate-note" placeholder="备注（可选）" />
+
+    <main class="view-outlet" id="view-outlet">
+      <!-- 工作区首页 -->
+      <section id="view-home" class="view hidden">
+        <div class="page-hero">
+          <h1>工作区</h1>
+          <p class="muted">从左侧选择套题或单题。单题工作流：流水线 → 编辑器 / Agent。</p>
         </div>
+        <div class="card-grid" id="home-recent"></div>
       </section>
-      <section class="editor-row card hidden" id="editor-section">
-        <div class="editor-tabs">
-          <select id="artifact-kind"></select>
-          <select id="artifact-language" title="工件语言">
-            <option value="cpp">cpp</option>
-            <option value="python">python</option>
-            <option value="java">java</option>
-          </select>
-          <button id="btn-save">保存</button>
-          <button id="btn-compile">仅编译</button>
-          <button id="btn-run">运行</button>
-          <button id="btn-compare">对比运行</button>
-          <button id="btn-stress-quick">快速对拍</button>
-          <button id="btn-interactive" type="button">交互运行</button>
-          <button id="btn-polygon-zip" type="button">导出 Polygon zip</button>
-          <button id="btn-dispatch-package" type="button">调度 PACKAGE</button>
-        </div>
-        <div id="monaco-editor" class="monaco"></div>
-      </section>
-      <section class="run-panel card hidden" id="run-section">
-        <h3>运行（沙箱）</h3>
-        <label>程序 <select id="run-program"><option value="std">标程 std</option><option value="brute">暴力 brute</option><option value="checker">checker</option></select></label>
-        <label class="checkbox"><input type="checkbox" id="use-draft" /> 使用当前编辑器草稿</label>
-        <label class="checkbox"><input type="checkbox" id="use-checker" /> SPJ checker 判题</label>
-        <div class="io-grid">
+
+      <!-- 套题 -->
+      <section id="view-contest" class="view hidden">
+        <div class="page-head">
           <div>
-            <label>Input</label>
-            <textarea id="run-input" rows="5"></textarea>
-            <label>Expected（可选，字节比较 AC/WA）</label>
-            <textarea id="run-expected" rows="3"></textarea>
-            <button id="btn-load-sample" type="button">加载样例</button>
+            <h1 id="contest-title">套题</h1>
+            <p class="muted"><span id="contest-status"></span> · <span id="contest-meta"></span></p>
           </div>
-          <div>
-            <label>Output</label>
-            <pre id="run-output" class="output"></pre>
-            <p id="run-verdict" class="verdict"></p>
+          <div class="btn-row">
+            <button type="button" class="btn-primary" id="btn-set-eval">套题评估</button>
+            <button type="button" class="btn-secondary" id="btn-set-approve">通过评估</button>
+            <button type="button" class="btn-secondary" id="btn-slot-create">槽位新建题</button>
           </div>
         </div>
+        <div class="card">
+          <h2 class="card-title">难度曲线</h2>
+          <div id="difficulty-chart" class="difficulty-chart"></div>
+          <p id="set-eval-summary" class="muted"></p>
+        </div>
+        <div class="card">
+          <h2 class="card-title">槽位</h2>
+          <table class="gh-table" id="slot-table">
+            <thead><tr><th>槽</th><th>题目</th><th>阶段</th><th>难度</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </section>
-      <section class="card">
-        <h3>监控</h3>
-        <label>run_id 筛选 <input id="filter-run-id" placeholder="uuid（可选）" /></label>
-        <ul id="event-list" class="events"></ul>
+
+      <!-- 流水线：阶段时间线 -->
+      <section id="view-pipeline" class="view hidden">
+        <div class="page-head compact">
+          <div>
+            <h1 id="pipeline-title">题目</h1>
+            <p class="muted">
+              当前 <strong id="pipeline-stage"></strong> ·
+              <span id="pipeline-style"></span> · 控制 <span id="pipeline-control"></span>
+            </p>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn-primary" id="btn-dispatch">调度当前阶段</button>
+            <button type="button" class="btn-secondary" id="btn-approve">通过 Gate</button>
+          </div>
+        </div>
+        <div class="pipeline-layout">
+          <div class="card stage-timeline-card">
+            <h2 class="card-title">阶段进度</h2>
+            <ol id="stage-timeline" class="stage-timeline"></ol>
+          </div>
+          <div class="card">
+            <h2 class="card-title">Gate 备注</h2>
+            <input id="gate-note" class="gh-input" placeholder="通过阶段时的备注（可选）" />
+            <div class="btn-row" style="margin-top:12px">
+              <button type="button" class="btn-secondary" id="btn-goto-editor">打开编辑器</button>
+              <button type="button" class="btn-primary" id="btn-goto-agent">打开 Agent</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 编辑器（参考在线 IDE 布局） -->
+      <section id="view-editor" class="view hidden view-editor-full">
+        <div class="editor-toolbar">
+          <div class="editor-tabs">
+            <select id="artifact-kind" class="gh-select gh-select-sm" title="工件"></select>
+            <select id="artifact-language" class="gh-select gh-select-sm" title="语言">
+              <option value="cpp">C++</option>
+              <option value="python">Python</option>
+              <option value="java">Java</option>
+            </select>
+          </div>
+          <div class="editor-actions">
+            <select id="run-program" class="gh-select gh-select-sm">
+              <option value="std">标程 std</option>
+              <option value="brute">暴力 brute</option>
+              <option value="checker">checker</option>
+            </select>
+            <label class="gh-check"><input type="checkbox" id="use-draft" /> 草稿</label>
+            <label class="gh-check"><input type="checkbox" id="use-checker" /> SPJ</label>
+            <button type="button" class="btn-secondary btn-sm" id="btn-save">保存</button>
+            <button type="button" class="btn-secondary btn-sm" id="btn-compile">编译</button>
+            <button type="button" class="btn-run" id="btn-run">▶ 运行 (F9)</button>
+            <details class="more-menu">
+              <summary class="btn-ghost btn-sm">更多</summary>
+              <div class="more-dropdown">
+                <button type="button" id="btn-compare">对比运行</button>
+                <button type="button" id="btn-stress-quick">快速对拍</button>
+                <button type="button" id="btn-interactive">交互运行</button>
+                <button type="button" id="btn-load-sample">加载样例</button>
+                <button type="button" id="btn-polygon-zip">Polygon zip</button>
+                <button type="button" id="btn-dispatch-package">调度 PACKAGE</button>
+              </div>
+            </details>
+          </div>
+        </div>
+        <div id="monaco-editor" class="monaco-pane"></div>
+        <div class="console-split">
+          <div class="console-pane">
+            <div class="console-head">输入 <span class="muted">可选</span></div>
+            <textarea id="run-input" class="console-text" placeholder="标准输入…"></textarea>
+            <div class="console-head sub">期望输出 <span class="muted">可选</span></div>
+            <textarea id="run-expected" class="console-text console-text-sm" placeholder="用于 AC/WA 比较"></textarea>
+          </div>
+          <div class="console-pane">
+            <div class="console-head">结果 <span id="run-verdict" class="verdict"></span></div>
+            <pre id="run-output" class="console-output"></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Session Agent（独立全页） -->
+      <section id="view-agent" class="view hidden">
+        <div class="agent-layout">
+          <div class="agent-main card">
+            <div class="page-head compact">
+              <div>
+                <h1>Session Agent</h1>
+                <p class="muted" id="agent-context">未选择题目标</p>
+              </div>
+              <button type="button" class="btn-ghost btn-sm" id="btn-agent-clear">清空对话</button>
+            </div>
+            <div class="agent-chips" id="agent-chips"></div>
+            <div id="chat-log" class="chat-log"></div>
+            <div class="chat-compose">
+              <textarea id="chat-input" rows="3" placeholder="例如：dispatch STRESS · approve SPEC · 对拍 · 套题状态"></textarea>
+              <button type="button" class="btn-primary" id="btn-chat-send">发送</button>
+            </div>
+          </div>
+          <aside class="agent-side card">
+            <h2 class="card-title">阶段快照</h2>
+            <ol id="agent-stage-timeline" class="stage-timeline stage-timeline-compact"></ol>
+            <p class="muted" style="margin-top:12px;font-size:12px">每 5 秒自动刷新</p>
+          </aside>
+        </div>
+      </section>
+
+      <!-- 监控 -->
+      <section id="view-monitor" class="view hidden">
+        <div class="page-head compact">
+          <h1>监控事件</h1>
+          <label class="gh-check">run_id <input id="filter-run-id" class="gh-input gh-input-inline" placeholder="uuid" /></label>
+        </div>
+        <ul id="event-list" class="event-feed"></ul>
+      </section>
+
+      <!-- 设置 -->
+      <section id="view-settings" class="view hidden">
+        <div class="page-hero">
+          <h1>设置</h1>
+          <p class="muted">API 密钥与爬取配置（爬取 Token 仅存于本机浏览器）。</p>
+        </div>
+        <div class="card settings-section">
+          <h2 class="card-title">Workspace API</h2>
+          <p id="secret-status" class="muted"></p>
+          <label class="gh-label">OpenAI API Key</label>
+          <input id="openai-key" type="password" class="gh-input" autocomplete="off" />
+          <button type="button" class="btn-primary" id="btn-save-secrets" style="margin-top:12px">保存到服务端</button>
+        </div>
+        <div class="card settings-section">
+          <h2 class="card-title">爬取与外部 Token</h2>
+          <p class="muted">以下仅保存在本机 localStorage，不会上传服务器。</p>
+          <label class="gh-label">Codeforces Session / Token</label>
+          <input id="cfg-cf-token" type="password" class="gh-input" />
+          <label class="gh-label">Polygon 登录 Cookie（可选）</label>
+          <textarea id="cfg-polygon-cookie" class="gh-input" rows="2"></textarea>
+          <label class="gh-label">爬取站点列表（每行一个 URL）</label>
+          <textarea id="cfg-crawl-sites" class="gh-input" rows="5" placeholder="https://codeforces.com/...\nhttps://..."></textarea>
+          <button type="button" class="btn-primary" id="btn-save-local-config" style="margin-top:12px">保存本地配置</button>
+        </div>
       </section>
     </main>
-    <aside class="session-panel card">
-      <h3>Session Agent</h3>
-      <div id="chat-log" class="chat-log"></div>
-      <textarea id="chat-input" rows="3" placeholder="dispatch ADVERSARIAL_REVIEW / 状态 / 对拍"></textarea>
-      <button id="btn-chat-send">发送</button>
-    </aside>
   </div>
-  <dialog id="dlg-settings">
-    <h3>Workspace 密钥</h3>
-    <p id="secret-status" class="muted"></p>
-    <label>OpenAI API Key <input id="openai-key" type="password" /></label>
-    <div class="dlg-actions">
-      <button id="btn-save-secrets">保存</button>
-      <button id="btn-close-settings">关闭</button>
-    </div>
-  </dialog>
+
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs/loader.js"></script>
   <script src="/assets/app.js"></script>
 </body>

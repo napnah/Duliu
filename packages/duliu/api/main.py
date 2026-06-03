@@ -18,7 +18,13 @@ from duliu.api.schemas import (
     CompareRunRequest,
     CompileRequest,
     ContestSetCreate,
+    ContestSetDetailOut,
     ContestSetOut,
+    ContestSlotOut,
+    SetEvalApprove,
+    SlotBindRequest,
+    SlotCreateRequest,
+    SlotProblemBrief,
     ControlModeSet,
     DispatchRequest,
     EventOut,
@@ -46,6 +52,7 @@ from duliu.db.bootstrap import (
     seed_communication_demo,
     refresh_interactive_interactor,
     seed_interactive_demo,
+    seed_m4_demo_set,
     seed_package_ready_problem,
     seed_demo_contest_set,
     seed_demo_problem,
@@ -58,6 +65,7 @@ from duliu.db.models import (
     M3_STAGE_ORDER,
     Artifact,
     ContestSet,
+    ContestSlot,
     Event,
     Problem,
     ProblemStage,
@@ -67,6 +75,7 @@ from duliu.db.models import (
     WorkspaceSecret,
 )
 from duliu.db.session import async_session, get_db, init_db
+from duliu.facade.contest import ContestFacade
 from duliu.facade.jobs import JobFacade
 from duliu.facade.pipeline import PipelineFacade
 from duliu.facade.session import SessionFacade
@@ -93,11 +102,12 @@ async def lifespan(app: FastAPI):
         await refresh_interactive_interactor(session, ws)
         await seed_communication_demo(session, ws)
         await seed_package_ready_problem(session, ws)
+        await seed_m4_demo_set(session, ws)
         await session.commit()
     yield
 
 
-app = FastAPI(title="Duliu API", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="Duliu API", version="0.4.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins.split(","),
@@ -112,7 +122,7 @@ if WEB_DIR.is_dir():
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "milestone": "M3"}
+    return {"status": "ok", "milestone": "M4"}
 
 
 @app.get("/")
@@ -144,6 +154,131 @@ async def post_contest_set(body: ContestSetCreate, db: AsyncSession = Depends(ge
     cs = await create_contest_set(db, ws, body.name, body.contest_style, count)
     await db.commit()
     return ContestSetOut.model_validate(cs)
+
+
+@app.get("/api/contest-sets/{contest_set_id}", response_model=ContestSetDetailOut)
+async def get_contest_set(contest_set_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    detail = await ContestFacade.get_detail(db, contest_set_id)
+    if not detail:
+        raise HTTPException(404, "contest set not found")
+    slots = []
+    for s in detail["slots"]:
+        prob = None
+        if s.get("problem"):
+            pj = s["problem"]
+            prob = SlotProblemBrief(
+                id=uuid.UUID(pj["id"]),
+                title=pj["title"],
+                current_stage=pj["current_stage"],
+                problem_type=pj["problem_type"],
+                spec_json=pj.get("spec_json") or {},
+            )
+        slots.append(
+            ContestSlotOut(
+                id=uuid.UUID(s["id"]),
+                slot_label=s["slot_label"],
+                status=s["status"],
+                problem_id=uuid.UUID(s["problem_id"]) if s.get("problem_id") else None,
+                problem=prob,
+            )
+        )
+    cs = await db.get(ContestSet, contest_set_id)
+    return ContestSetDetailOut(
+        id=contest_set_id,
+        name=detail["name"],
+        contest_style=detail["contest_style"],
+        slot_count=detail["slot_count"],
+        status=detail["status"],
+        target_difficulty_json=detail["target_difficulty_json"],
+        set_eval_json=detail["set_eval_json"] or {},
+        slots=slots,
+    )
+
+
+@app.post("/api/contest-sets/{contest_set_id}/slots/{slot_label}/bind")
+async def bind_slot(
+    contest_set_id: uuid.UUID,
+    slot_label: str,
+    body: SlotBindRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    cs = await db.get(ContestSet, contest_set_id)
+    if not cs:
+        raise HTTPException(404, "contest set not found")
+    try:
+        await ContestFacade.bind_problem_to_slot(db, cs, slot_label, body.problem_id)
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True, "slot_label": slot_label, "problem_id": str(body.problem_id)}
+
+
+@app.post("/api/contest-sets/{contest_set_id}/slots/{slot_label}/create-problem", response_model=ProblemOut)
+async def create_problem_in_slot(
+    contest_set_id: uuid.UUID,
+    slot_label: str,
+    body: SlotCreateRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    cs = await db.get(ContestSet, contest_set_id)
+    if not cs:
+        raise HTTPException(404, "contest set not found")
+    try:
+        p = await ContestFacade.create_problem_in_slot(
+            db, cs, slot_label, title=body.title, problem_type=body.problem_type, rating=body.rating
+        )
+        await db.commit()
+        await db.refresh(p)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return ProblemOut.model_validate(p)
+
+
+@app.post("/api/contest-sets/{contest_set_id}/evaluate")
+async def evaluate_contest_set(contest_set_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    cs = await db.get(ContestSet, contest_set_id)
+    if not cs:
+        raise HTTPException(404, "contest set not found")
+    report = await ContestFacade.evaluate_set(db, cs)
+    await db.commit()
+    return report
+
+
+@app.post("/api/contest-sets/{contest_set_id}/approve-eval", response_model=ContestSetOut)
+async def approve_contest_eval(
+    contest_set_id: uuid.UUID,
+    body: SetEvalApprove,
+    db: AsyncSession = Depends(get_db),
+):
+    cs = await db.get(ContestSet, contest_set_id)
+    if not cs:
+        raise HTTPException(404, "contest set not found")
+    try:
+        await ContestFacade.approve_set_eval(db, cs, note=body.note)
+        await db.commit()
+        await db.refresh(cs)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return ContestSetOut.model_validate(cs)
+
+
+@app.get("/api/monitor/events", response_model=list[EventOut])
+async def list_events(
+    problem_id: uuid.UUID | None = None,
+    contest_set_id: uuid.UUID | None = None,
+    run_id: uuid.UUID | None = None,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+):
+    q = select(Event).order_by(Event.created_at.desc()).limit(min(limit, 500))
+    if problem_id:
+        q = q.where(Event.problem_id == problem_id)
+    if contest_set_id:
+        q = q.where(Event.contest_set_id == contest_set_id)
+    if run_id:
+        q = q.where(Event.run_id == run_id)
+    rows = (await db.execute(q)).scalars().all()
+    return [EventOut.model_validate(e) for e in rows]
 
 
 @app.post("/api/problems", response_model=ProblemOut)
@@ -460,22 +595,6 @@ async def get_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     return JobOut.model_validate(job)
 
 
-@app.get("/api/monitor/events", response_model=list[EventOut])
-async def list_events(
-    problem_id: uuid.UUID | None = None,
-    run_id: uuid.UUID | None = None,
-    limit: int = 100,
-    db: AsyncSession = Depends(get_db),
-):
-    q = select(Event).order_by(Event.created_at.desc()).limit(min(limit, 500))
-    if problem_id:
-        q = q.where(Event.problem_id == problem_id)
-    if run_id:
-        q = q.where(Event.run_id == run_id)
-    rows = (await db.execute(q)).scalars().all()
-    return [EventOut.model_validate(e) for e in rows]
-
-
 @app.post("/api/sessions", response_model=SessionOut)
 async def create_session(body: SessionCreate, db: AsyncSession = Depends(get_db)):
     ws = await ensure_default_workspace(db)
@@ -509,7 +628,12 @@ async def session_chat(
     pid = body.problem_id or chat.problem_id
     if pid:
         problem = await db.get(Problem, pid)
-    user_msg, asst, tools = await SessionFacade.chat(db, chat, body.message, problem=problem)
+    contest_set = None
+    if body.contest_set_id:
+        contest_set = await db.get(ContestSet, body.contest_set_id)
+    user_msg, asst, tools = await SessionFacade.chat(
+        db, chat, body.message, problem=problem, contest_set=contest_set
+    )
     await db.commit()
     return ChatResponse(
         user=MessageOut.model_validate(user_msg),

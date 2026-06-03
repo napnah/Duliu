@@ -1,7 +1,7 @@
 # Duliu — 全自动算法竞赛出题 AI Agent 系统规划
 
 > 版本：v0.4  
-> 状态：**M3 已实现**（见 [docs/M3-COMPLETE.md](./docs/M3-COMPLETE.md)）；M4+ 待实现  
+> 状态：**M4 已实现**（见 [docs/M4-COMPLETE.md](./docs/M4-COMPLETE.md)）；M5+ 待实现  
 > 技术栈：LangGraph · **Postgres** · Docker(Linux) · Isolate · **Facade 封装流水线** · Web 监控+Session · Worker  
 > 决策记录：[docs/decisions.md](./docs/decisions.md) · 运行架构：[docs/architecture-runtime.md](./docs/architecture-runtime.md)
 

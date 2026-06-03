@@ -71,6 +71,8 @@ class ContestSet(Base):
     originality_policy: Mapped[str] = mapped_column(String(32), default="ORIGINAL")
     target_difficulty_json: Mapped[dict] = mapped_column(JSONB, default=dict)
     slot_count: Mapped[int] = mapped_column(Integer, default=13)
+    status: Mapped[str] = mapped_column(String(32), default="DRAFT")
+    set_eval_json: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     workspace: Mapped["Workspace"] = relationship(back_populates="contest_sets")

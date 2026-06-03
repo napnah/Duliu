@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from duliu.db.models import Problem, Session, SessionMessage, Workspace
+from duliu.db.models import ContestSet, Problem, Session, SessionMessage, Workspace
 from duliu.facade.events import emit_event
 from duliu.facade.secrets import apply_workspace_secrets
 from duliu.session.agent import SessionAgent
@@ -53,6 +53,7 @@ class SessionFacade:
         message: str,
         *,
         problem: Problem | None = None,
+        contest_set: ContestSet | None = None,
     ) -> tuple[SessionMessage, SessionMessage, list[dict]]:
         if problem is None and chat.problem_id:
             problem = await session.get(Problem, chat.problem_id)
@@ -64,7 +65,9 @@ class SessionFacade:
         await session.flush()
 
         agent = SessionAgent()
-        reply_text, tools = await agent.reply(session, chat, problem, message)
+        reply_text, tools = await agent.reply(
+            session, chat, problem, message, contest_set=contest_set
+        )
 
         asst = SessionMessage(
             session_id=chat.id,
@@ -74,10 +77,11 @@ class SessionFacade:
         )
         session.add(asst)
 
-        if problem:
+        if problem or contest_set:
             await emit_event(
                 session,
-                problem_id=problem.id,
+                problem_id=problem.id if problem else None,
+                contest_set_id=contest_set.id if contest_set else None,
                 type="session.message",
                 message=f"User: {message[:120]}",
                 source="session",

@@ -13,8 +13,12 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(text("ALTER TABLE events ADD COLUMN IF NOT EXISTS run_id UUID"))
         await conn.execute(
-            text("ALTER TABLE events ADD COLUMN IF NOT EXISTS run_id UUID")
+            text("ALTER TABLE contest_sets ADD COLUMN IF NOT EXISTS status VARCHAR(32) DEFAULT 'DRAFT'")
+        )
+        await conn.execute(
+            text("ALTER TABLE contest_sets ADD COLUMN IF NOT EXISTS set_eval_json JSONB DEFAULT '{}'")
         )
 
 
