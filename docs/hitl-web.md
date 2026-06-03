@@ -28,7 +28,7 @@ duliu-api → SessionFacade / PipelineFacade / MonitorFacade / JobFacade
 | **阶段条** | S0~S9；Approve / Reject |
 | **工件编辑** | 题面、标程、gen、checker（保存 → DB 新版本） |
 | **任务卡片** | 当前 stress/compile Job 状态、取消、进度 |
-| **设置** | 按 Agent 配置 LLM（decisions.md） |
+| **设置** | LLM API Key（按 Agent 可覆盖）+ 爬虫 Token/Cookie；测试连接；见 [integrations.md](./integrations.md) |
 
 阶段 Agent **不在**聊天窗回复；其动作仅出现在监控时间线（`source=pipeline`）。
 

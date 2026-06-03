@@ -17,6 +17,7 @@
 | [docs/polygon.md](./docs/polygon.md) | Polygon 平台与题包结构 |
 | [docs/architecture-runtime.md](./docs/architecture-runtime.md) | **运行架构**：监控、Session、Facade、Worker |
 | [docs/decisions.md](./docs/decisions.md) | 已确认决策、LLM 说明 |
+| [docs/integrations.md](./docs/integrations.md) | LLM 调用方式、LangGraph、爬虫与 Web 配 Key |
 
 ## 需求摘要（v0.4 已锁定）
 

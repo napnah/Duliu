@@ -205,9 +205,16 @@ target_difficulty: { min_rating, max_rating, distribution: [...] }
 | LangGraph `interrupt` | 待审批 → Web 展示 Gate |
 | CLI | 调用同一 REST（token/本地） |
 
-### 7.5 LLM 按 Agent 配置
+### 7.5 LLM 与工具调用（D-10）
 
-各 Agent 独立 `provider` / `model`（`config/agents.llm.yaml`）。API Key：**不强制启动时终端输入**；使用环境变量、`.duliu/secrets.yaml` 或 Web 设置页首次配置。详见 [docs/decisions.md](./docs/decisions.md) §LLM。
+各 Agent 独立 `provider` / `model`（`config/agents.llm.yaml`）。API Key 在 **Web 设置页** 配置（推荐），或 env / `.duliu/secrets.yaml`。
+
+- LLM 通过 **后端 Tool Calling** 调用 `save_artifact`、`dispatch_stage` 等；**不是 MCP，不是 CLI**。
+- 工件写入 **Postgres**，非直接改 Cursor 本地文件。详见 [docs/integrations.md](./docs/integrations.md) §1。
+
+### 7.5b 爬虫凭证（D-12）
+
+登录类站点由用户在 Web 填写 **Token/Cookie**（加密存储）；爬虫在 Worker 容器执行，失败进 Monitor。详见 [docs/integrations.md](./docs/integrations.md) §3。
 
 ### 7.6 后台服务（D-08 已锁定）
 
@@ -497,7 +504,9 @@ Duliu/
 | ✅ | 状态库 | Postgres |
 | ✅ | 运行环境 | Linux Docker；严格 out 或 SPJ → §13.3 |
 | ✅ | HITL | Web 主，CLI 预留 → [hitl-web.md](./docs/hitl-web.md) |
-| ✅ | LLM | 按 Agent 配置；Key 用 env/secrets/Web 设置，非每次终端输入 → [decisions.md](./docs/decisions.md) |
+| ✅ | LLM | Tool Calling + Web 配 Key；见 [integrations.md](./docs/integrations.md) |
+| ✅ | LangGraph | Docker 内 Python 库，用户 compose 即可 → [integrations.md](./docs/integrations.md) §2 |
+| ✅ | 爬虫凭证 | Web 配 Token/Cookie，Worker 稳定队列+重试 → [integrations.md](./docs/integrations.md) §3 |
 | ✅ | **D-08/D-09 运行架构** | 前端监控+Session；后端 Facade+Pipeline+Worker → [architecture-runtime.md](./docs/architecture-runtime.md) |
 | ⏳ | 爬虫源站白名单 | M5 |
 | ⏳ | Polygon 自动上传网页 | 默认仅本地 package → [polygon.md](./docs/polygon.md) |

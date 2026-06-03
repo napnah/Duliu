@@ -1,6 +1,6 @@
 # Duliu 已确认决策（ADR 摘要）
 
-> 版本：0.3 · 与 PLAN.md 同步
+> 版本：0.4 · 与 PLAN.md 同步
 
 ## 已锁定
 
@@ -15,6 +15,9 @@
 | D-07 | **Polygon** | 导出目标为 Polygon 兼容 package；见 [polygon.md](./polygon.md) |
 | D-08 | **前后端分离 + Worker** | 前端：监控详日志 + Session 人机交互；后端：封装 Pipeline 多 Agent + Job Worker。见 [architecture-runtime.md](./architecture-runtime.md) |
 | D-09 | **高度封装** | 对外仅 `PipelineFacade` / `SessionFacade` / `MonitorFacade` / `JobFacade`；Web 不得直连 LangGraph 或 Stage Agent |
+| D-10 | **LLM 工具路径** | 后端 Tool Calling → Facade → DB/Worker；**非 MCP、非 CLI**；见 [integrations.md](./integrations.md) §1 |
+| D-11 | **LangGraph 交付** | Python 库，随 Docker 镜像；用户 `compose up` 即可；图代码在 `pipeline/`/`session/` |
+| D-12 | **前端密钥配置** | Web「设置」统一配置 LLM API Key + 爬虫 Token/Cookie（加密）；登录站由用户提供凭证 |
 
 ## ~~待你确认（Daemon）~~
 
@@ -46,7 +49,7 @@
 
 1. **环境变量**：`DULIU_LLM__SESSION__API_KEY` 或通用 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`
 2. **配置文件**（不入 Git）：`.duliu/secrets.yaml` 或 `~/.config/duliu/secrets.yaml`
-3. **Web 设置页（首次）**：设置 → 各 Agent 模型与 Key → 写入 DB 加密字段或本地 secrets 文件
+3. **Web 设置页（推荐）**：设置 → 密钥与集成 → LLM Key + 爬虫 Token/Cookie → DB 加密（见 [integrations.md](./integrations.md)）
 
 `config/agents.llm.yaml` 示例（无密钥，仅模型路由）：
 
@@ -72,3 +75,4 @@ adversarial:
 |------|------|
 | v0.2 | D-01~07；HITL 从 CLI 主路径改为 Web 主路径 |
 | v0.3 | D-08/D-09 运行架构：前端监控+Session，后端封装 Pipeline+Worker |
+| v0.4 | D-10~12：LLM Tool Calling、LangGraph Docker、Web 密钥/爬虫配置 |
