@@ -7,6 +7,7 @@ let currentProblem = null;
 let sessionId = null;
 let editor = null;
 let pollTimer = null;
+let eventSource = null;
 let stagePollTimer = null;
 let monacoReady = false;
 let treeCache = null;
@@ -167,7 +168,7 @@ async function onRoute() {
     } else if (tab === "monitor") {
       showView("view-monitor");
       await loadEvents();
-      pollTimer = setInterval(loadEvents, 3000);
+      startEventStream();
     }
   }
 }
@@ -175,8 +176,57 @@ async function onRoute() {
 function stopPollers() {
   if (pollTimer) clearInterval(pollTimer);
   if (stagePollTimer) clearInterval(stagePollTimer);
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
   pollTimer = null;
   stagePollTimer = null;
+  const sseEl = document.getElementById("monitor-sse-status");
+  if (sseEl) sseEl.textContent = "SSE 未连接";
+}
+
+function appendMonitorEvent(e, ul) {
+  const li = document.createElement("li");
+  li.textContent = `${e.created_at?.slice(0, 19) || ""} [${e.source || ""}] ${e.type || ""}: ${e.message || ""}`;
+  ul.appendChild(li);
+}
+
+function startEventStream() {
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+  let url = "/api/monitor/events/stream?";
+  if (currentProblemId) url += `problem_id=${currentProblemId}&`;
+  if (currentContestSetId) url += `contest_set_id=${currentContestSetId}&`;
+  const statusEl = document.getElementById("monitor-sse-status");
+  eventSource = new EventSource(API + url);
+  eventSource.onopen = () => {
+    if (statusEl) statusEl.textContent = "SSE 已连接（实时推送）";
+  };
+  eventSource.onmessage = (ev) => {
+    try {
+      const data = JSON.parse(ev.data);
+      if (data.type === "connected") return;
+      const ul = document.getElementById("event-list");
+      if (!ul) return;
+      const rid = document.getElementById("filter-run-id")?.value?.trim();
+      if (rid && data.run_id && data.run_id !== rid) return;
+      appendMonitorEvent(data, ul);
+      while (ul.children.length > 200) ul.removeChild(ul.firstChild);
+    } catch (_) {
+      /* ignore */
+    }
+  };
+  eventSource.onerror = () => {
+    if (statusEl) statusEl.textContent = "SSE 断开，3s 后轮询…";
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+    if (!pollTimer) pollTimer = setInterval(loadEvents, 3000);
+  };
 }
 
 window.addEventListener("hashchange", onRoute);
@@ -913,7 +963,25 @@ document.getElementById("btn-export-events").onclick = () => {
   window.open(u, "_blank");
 };
 
-document.getElementById("filter-run-id")?.addEventListener("change", loadEvents);
+document.getElementById("filter-run-id")?.addEventListener("change", () => {
+  loadEvents();
+  if (parseRoute().tab === "monitor") startEventStream();
+});
+
+document.getElementById("btn-fetch-ac-std")?.addEventListener("click", async () => {
+  if (!currentProblemId) return;
+  const handle = prompt("Codeforces handle（可选，用于筛选 AC）", "") || null;
+  try {
+    const out = await api(`/api/problems/${currentProblemId}/import/fetch-std`, {
+      method: "POST",
+      body: JSON.stringify(handle ? { handle } : {}),
+    });
+    alert(`已拉取标程 v${out.fetch.version} · submission ${out.fetch.submission_id}`);
+    await refreshPipeline();
+  } catch (e) {
+    alert(e.message || String(e));
+  }
+});
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "F9" && parseRoute().tab === "editor") {

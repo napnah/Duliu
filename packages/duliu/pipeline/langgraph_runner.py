@@ -5,14 +5,11 @@ from __future__ import annotations
 import uuid
 from typing import Any, TypedDict
 
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import END, StateGraph
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from duliu.config import settings
 from duliu.db.models import Problem
 
-_saver = MemorySaver()
 _compiled: Any = None
 
 
@@ -25,10 +22,16 @@ class DispatchGraphState(TypedDict, total=False):
     langgraph: bool
 
 
-def _get_graph():
+async def _get_graph():
     global _compiled
     if _compiled is not None:
         return _compiled
+
+    from langgraph.graph import END, StateGraph
+
+    from duliu.pipeline.checkpoint_saver import get_checkpointer
+
+    checkpointer = await get_checkpointer()
 
     async def dispatch_node(state: DispatchGraphState, config) -> dict:
         from duliu.facade.pipeline import PipelineFacade
@@ -50,7 +53,7 @@ def _get_graph():
     builder.add_node("dispatch", dispatch_node)
     builder.set_entry_point("dispatch")
     builder.add_edge("dispatch", END)
-    _compiled = builder.compile(checkpointer=_saver)
+    _compiled = builder.compile(checkpointer=checkpointer)
     return _compiled
 
 
@@ -63,7 +66,7 @@ async def invoke_dispatch(
     run_id: uuid.UUID | None = None,
 ) -> dict:
     """Run dispatch through LangGraph (MemorySaver checkpoint per problem thread)."""
-    graph = _get_graph()
+    graph = await _get_graph()
     rid = run_id or uuid.uuid4()
     thread_id = (problem.spec_json or {}).get("langgraph_thread_id") or str(problem.id)
     if not (problem.spec_json or {}).get("langgraph_thread_id"):
@@ -85,7 +88,29 @@ async def invoke_dispatch(
     result = final.get("result") or {}
     result["langgraph"] = True
     result["thread_id"] = thread_id
+    from duliu.pipeline.checkpoint_saver import checkpointer_mode as cp_mode
+
+    result["checkpointer"] = cp_mode()
     return result
+
+
+async def list_checkpoint_history(thread_id: str, *, limit: int = 20) -> list[dict]:
+    graph = await _get_graph()
+    config = {"configurable": {"thread_id": thread_id}}
+    items: list[dict] = []
+    try:
+        async for snap in graph.aget_state_history(config, limit=limit):
+            vals = snap.values or {}
+            items.append(
+                {
+                    "checkpoint_id": snap.config.get("configurable", {}).get("checkpoint_id"),
+                    "stage_id": vals.get("stage_id"),
+                    "has_result": bool(vals.get("result")),
+                }
+            )
+    except Exception:
+        return items
+    return items
 
 
 def langgraph_enabled() -> bool:

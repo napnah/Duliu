@@ -41,6 +41,7 @@ from duliu.api.schemas import (
     CrawlImportRequest,
     CrawlImportResponse,
     SubmissionConfirmRequest,
+    FetchAcStdRequest,
     ArtifactVersionOut,
     ArtifactRestoreRequest,
     SessionCreate,
@@ -86,11 +87,16 @@ from duliu.db.models import (
 from duliu.db.session import async_session, get_db, init_db
 from duliu.facade.contest import ContestFacade
 from duliu.facade.crawl import CrawlFacade
-from duliu.facade.import_flow import confirm_submission, enqueue_import_check
+from duliu.facade.import_flow import (
+    confirm_submission,
+    enqueue_import_check,
+    fetch_ac_std_and_save,
+)
+from duliu.facade.monitor_stream import sse_event_generator
 from duliu.pipeline.orchestrator import PipelineOrchestrator
 from duliu.facade.jobs import JobFacade
 from duliu.facade.artifacts import ArtifactFacade
-from duliu.facade.secrets_store import get_crawler_config, set_crawler_config
+from duliu.facade.secrets_store import get_crawler_config, get_workspace_secret, set_crawler_config
 from duliu.facade.pipeline import PipelineFacade
 from duliu.facade.session import SessionFacade
 from duliu.polygon.export import build_polygon_zip
@@ -120,6 +126,17 @@ async def lifespan(app: FastAPI):
         await ensure_m6_import_stages(session)
         await seed_m6_non_original_demo(session, ws)
         await session.commit()
+    if settings.use_langgraph:
+        try:
+            from duliu.pipeline.checkpoint_saver import get_checkpointer
+
+            await get_checkpointer()
+        except Exception as exc:
+            import logging
+
+            logging.getLogger("duliu.api").warning(
+                "LangGraph checkpointer init skipped: %s", exc
+            )
     yield
 
 
@@ -138,12 +155,15 @@ if WEB_DIR.is_dir():
 
 @app.get("/api/health")
 async def health():
+    from duliu.pipeline.checkpoint_saver import checkpointer_mode
     from duliu.runner.sandbox import isolate_available, sandbox_mode
 
     return {
         "status": "ok",
-        "milestone": "M9",
+        "milestone": "M10",
         "langgraph": settings.use_langgraph,
+        "langgraph_checkpoint": checkpointer_mode(),
+        "sse_poll_seconds": settings.sse_poll_seconds,
         "sandbox": sandbox_mode(),
         "isolate_available": isolate_available(),
     }
@@ -305,6 +325,21 @@ async def list_events(
     return [EventOut.model_validate(e) for e in rows]
 
 
+@app.get("/api/monitor/events/stream")
+async def stream_events(
+    problem_id: uuid.UUID | None = None,
+    contest_set_id: uuid.UUID | None = None,
+):
+    """M10 SSE: poll DB for new events (replaces 3s REST poll on monitor tab)."""
+    gen = sse_event_generator(
+        async_session,
+        problem_id=problem_id,
+        contest_set_id=contest_set_id,
+        poll_seconds=settings.sse_poll_seconds,
+    )
+    return StreamingResponse(gen, media_type="text/event-stream")
+
+
 @app.post("/api/problems", response_model=ProblemOut)
 async def create_problem(body: ProblemCreate, db: AsyncSession = Depends(get_db)):
     ws = await ensure_default_workspace(db)
@@ -398,13 +433,34 @@ async def sandbox_status():
 
 @app.get("/api/problems/{problem_id}/langgraph/status")
 async def langgraph_status(problem_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    from duliu.pipeline.checkpoint_saver import checkpointer_mode
+
     p = await db.get(Problem, problem_id)
     if not p:
         raise HTTPException(404, "problem not found")
     return {
         "enabled": settings.use_langgraph,
         "thread_id": (p.spec_json or {}).get("langgraph_thread_id"),
+        "checkpointer": checkpointer_mode(),
+        "checkpoint_config": settings.langgraph_checkpoint,
     }
+
+
+@app.get("/api/problems/{problem_id}/langgraph/history")
+async def langgraph_history(problem_id: uuid.UUID, limit: int = 20, db: AsyncSession = Depends(get_db)):
+    from duliu.pipeline.langgraph_runner import langgraph_enabled, list_checkpoint_history
+
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    if not langgraph_enabled():
+        return {"enabled": False, "history": []}
+    thread_id = (p.spec_json or {}).get("langgraph_thread_id") or str(problem_id)
+    try:
+        history = await list_checkpoint_history(thread_id, limit=min(limit, 50))
+    except ImportError:
+        return {"enabled": False, "history": [], "error": "langgraph not installed"}
+    return {"enabled": True, "thread_id": thread_id, "history": history}
 
 
 @app.get("/api/problems/{problem_id}/pipeline-graph")
@@ -436,6 +492,32 @@ async def confirm_import_submission(
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return ProblemOut.model_validate(p)
+
+
+@app.post("/api/problems/{problem_id}/import/fetch-std")
+async def fetch_import_std(
+    problem_id: uuid.UUID,
+    body: FetchAcStdRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    p = await db.get(Problem, problem_id)
+    if not p:
+        raise HTTPException(404, "problem not found")
+    ws = await ensure_default_workspace(db)
+    cfg = await get_crawler_config(db, ws)
+    cookie = await get_workspace_secret(db, ws.id, "crawler_cf_cookie")
+    try:
+        out = await fetch_ac_std_and_save(
+            db,
+            p,
+            cookie=cookie,
+            handle=(body.handle if body else None),
+        )
+        await db.commit()
+        await db.refresh(p)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"problem_id": str(problem_id), "fetch": out, "cf_cookie_configured": cfg["cf_cookie_configured"]}
 
 
 @app.post("/api/problems/{problem_id}/import/check", response_model=JobOut)

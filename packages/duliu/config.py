@@ -15,8 +15,10 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     use_langgraph: bool = Field(default=False, validation_alias="DULIU_USE_LANGGRAPH")
+    langgraph_checkpoint: str = Field(default="memory", validation_alias="DULIU_LANGGRAPH_CHECKPOINT")
     use_isolate: bool = Field(default=False, validation_alias="DULIU_USE_ISOLATE")
     worker_job_kinds: str = Field(default="", validation_alias="DULIU_WORKER_JOB_KINDS")
+    sse_poll_seconds: float = Field(default=2.0, validation_alias="DULIU_SSE_POLL_SECONDS")
 
     def worker_job_kinds_list(self) -> list[str] | None:
         raw = (self.worker_job_kinds or "").strip()

@@ -36,6 +36,8 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DULIU_PACKAGE_DIR: /tmp/duliu-packages
       DULIU_USE_LANGGRAPH: ${DULIU_USE_LANGGRAPH:-true}
+      DULIU_LANGGRAPH_CHECKPOINT: ${DULIU_LANGGRAPH_CHECKPOINT:-postgres}
+      DULIU_SSE_POLL_SECONDS: "2"
     depends_on:
       postgres:
         condition: service_healthy

@@ -7,6 +7,7 @@
 | 文件 | 说明 |
 |------|------|
 | [PLAN.md](./PLAN.md) | **主规划**：需求、架构、阶段、LangGraph、沙箱、路线图 |
+| [TECHNICAL.md](./TECHNICAL.md) | **技术说明**：架构、实现现状、技术栈与前置知识索引 |
 | [docs/stages.yaml](./docs/stages.yaml) | 单题阶段定义与驳回路由 |
 | [docs/workflow_icpc.yaml](./docs/workflow_icpc.yaml) | ICPC 工作流参数（默认 13 题/套） |
 | [docs/workflow_oi.yaml](./docs/workflow_oi.yaml) | OI 工作流参数（默认 4 题/套） |
@@ -43,9 +44,9 @@
 
 实现按 [PLAN.md §16](./PLAN.md#16-实施路线图) 里程碑推进。
 
-## M7–M9 ✅ 已完成
+## M7–M10 ✅ 已完成
 
-- [M7 LangGraph](docs/M7-COMPLETE.md) · [M8 工件回退](docs/M8-COMPLETE.md) · [M9 沙箱/Worker](docs/M9-COMPLETE.md)
+- [M7 LangGraph](docs/M7-COMPLETE.md) · [M8 工件回退](docs/M8-COMPLETE.md) · [M9 沙箱/Worker](docs/M9-COMPLETE.md) · [M10 SSE/Checkpointer/AC](docs/M10-COMPLETE.md)
 
 ## M6 ✅ 已完成
 

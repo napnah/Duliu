@@ -127,3 +127,57 @@ async def record_import_check_result(session: AsyncSession, problem: Problem, re
     }
     problem.spec_json = {**problem.spec_json, "import": imp}
     await session.flush()
+
+
+async def fetch_ac_std_and_save(
+    session: AsyncSession,
+    problem: Problem,
+    *,
+    cookie: str | None,
+    handle: str | None = None,
+) -> dict:
+    """Pull latest CF AC source into std artifact (M10)."""
+    if problem.originality != "NON_ORIGINAL":
+        raise ValueError("AC std fetch only for NON_ORIGINAL")
+    imp = dict(problem.spec_json.get("import") or {})
+    url = imp.get("problem_url") or (problem.spec_json or {}).get("source_url")
+    if not url:
+        raise ValueError("No problem_url in import spec")
+    from duliu.crawler.ac_fetch import fetch_ac_std_for_problem
+
+    fetched = await fetch_ac_std_for_problem(
+        problem_url=url,
+        cookie=cookie,
+        handle=handle or imp.get("handle"),
+    )
+    latest = await JobFacade.latest_artifact(session, problem.id, "std")
+    ver = (latest.version + 1) if latest else 1
+    content = fetched["source"]
+    session.add(
+        Artifact(
+            problem_id=problem.id,
+            kind="std",
+            version=ver,
+            content_text=content,
+            sha256=hashlib.sha256(content.encode()).hexdigest(),
+            author="ac_fetch",
+            language=fetched.get("language") or "cpp",
+        )
+    )
+    imp["ac_fetch"] = {
+        "submission_id": fetched.get("submission_id"),
+        "handle": fetched.get("handle"),
+        "language": fetched.get("language"),
+        "at": datetime.now(timezone.utc).isoformat(),
+    }
+    problem.spec_json = {**problem.spec_json, "import": imp}
+    await emit_event(
+        session,
+        problem_id=problem.id,
+        type="import.ac_std_fetched",
+        message=f"Fetched AC std from submission {fetched.get('submission_id')}",
+        source="import",
+        payload=imp["ac_fetch"],
+    )
+    await session.flush()
+    return {"version": ver, **fetched}

@@ -274,6 +274,10 @@ class SubmissionConfirmRequest(BaseModel):
     handle: str | None = None
 
 
+class FetchAcStdRequest(BaseModel):
+    handle: str | None = None
+
+
 class ArtifactVersionOut(BaseModel):
     version: int
     id: uuid.UUID

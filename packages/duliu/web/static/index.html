@@ -108,6 +108,7 @@
           <input id="import-submission-url" class="gh-input" placeholder="提交链接（选填）" />
           <div class="btn-row" style="margin-top:10px">
             <button type="button" class="btn-secondary" id="btn-import-check">运行 import_check</button>
+            <button type="button" class="btn-secondary" id="btn-fetch-ac-std">拉取 CF AC 标程</button>
             <button type="button" class="btn-primary" id="btn-import-confirm">保存提交确认</button>
             <a id="import-open-url" class="btn-ghost" target="_blank" rel="noopener">打开原题</a>
           </div>
@@ -213,6 +214,7 @@
             <label class="gh-check">run_id <input id="filter-run-id" class="gh-input gh-input-inline" placeholder="uuid" /></label>
             <button type="button" class="btn-secondary btn-sm" id="btn-export-events">导出 JSON</button>
           </div>
+          <p class="muted" id="monitor-sse-status">SSE 未连接</p>
         </div>
         <ul id="event-list" class="event-feed"></ul>
       </section>

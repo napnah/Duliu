@@ -38,4 +38,4 @@ python -m duliu.cli confirm-submission <problem-uuid> --url "https://..."
 
 ## 后续（M7–M9 已补齐部分能力）
 
-见 [M7-COMPLETE.md](./M7-COMPLETE.md)、[M8-COMPLETE.md](./M8-COMPLETE.md)、[M9-COMPLETE.md](./M9-COMPLETE.md)。仍待：Postgres checkpointer、生产级 Isolate、AC 标程自动拉取。
+见 [M7-COMPLETE.md](./M7-COMPLETE.md) … [M10-COMPLETE.md](./M10-COMPLETE.md)。仍待：生产级 Isolate、完整 LangGraph 阶段图。
