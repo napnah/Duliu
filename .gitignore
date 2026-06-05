@@ -24,6 +24,10 @@ artifacts/
 *.log
 node_modules/
 
+# MCP subproject
+mcp/duliu-mcp/.venv/
+mcp/duliu-mcp/exports/
+
 # OS
 Thumbs.db
 .DS_Store

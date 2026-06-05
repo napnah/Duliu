@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "duliu": {
+      "command": "duliu-mcp",
+      "args": [],
+      "cwd": "F:/AI_Agent/Duliu/mcp/duliu-mcp",
+      "env": {
+        "DULIU_API_BASE_URL": "http://localhost:8000",
+        "DULIU_EXPORT_DIR": "F:/AI_Agent/Duliu/mcp/duliu-mcp/exports"
+      }
+    }
+  }
+}

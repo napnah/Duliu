@@ -24,6 +24,7 @@
 | [docs/non-original-workflow.md](./docs/non-original-workflow.md) | 非原创：网络标程、对拍、原题提交 |
 | [docs/wsl-windows.md](./docs/wsl-windows.md) | **Windows 主机：WSL2 + Docker** |
 | [docs/M1-quickstart.md](./docs/M1-quickstart.md) | M1 启动与验收 |
+| [mcp/duliu-mcp/README.md](./mcp/duliu-mcp/README.md) | **MCP 子项目**：出题/出数据工具（Cursor 等） |
 
 ## 需求摘要（v0.4 已锁定）
 
